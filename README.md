@@ -107,7 +107,7 @@ Release builds use Azure Artifact Signing with the existing Forceworks Public Tr
 
 ## AnyAPI configuration
 
-Paste the AnyAPI key into Watchlists and select Save key. The key is stored locally in the Electron user-data directory and is never sent to the social platforms directly.
+Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/). Paste it into Watchlists and select Save key. The key is stored locally in the Electron user-data directory and is never sent to the social platforms directly.
 
 Optional SKU overrides are available for development:
 
