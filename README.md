@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.2 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.3 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
