@@ -154,10 +154,14 @@ npm audit --audit-level=high
 
 The tests cover LinkedIn timestamp parsing, X query behavior, source-query isolation, expansion-source normalization, sanitized fixtures, and English-language filtering.
 
+## License
+
+RSignals is licensed under the MIT License. See [LICENSE](LICENSE).
+
 ## Known limitations
 
 - The main feed contains posts, videos, and articles, not comment records. Comment endpoints can be added later as enrichment.
 - Substack requires publication URLs rather than arbitrary keyword search.
 - TikTok currently uses hashtags so freshness can be validated from timestamped results.
 - Settings and history are local to the Windows user profile; there is no account sync.
-- The project is currently marked `UNLICENSED`; public visibility does not grant reuse rights.
+- Third-party dependencies and reused assets may have their own license terms.

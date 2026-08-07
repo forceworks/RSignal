@@ -5,7 +5,7 @@
   "type": "module",
   "main": "main.js",
   "author": "Steve Mordue",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "start": "electron .",
     "test": "node --test",
