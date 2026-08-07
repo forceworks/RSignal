@@ -2,7 +2,6 @@ import http from 'node:http';
 import { readFile, writeFile, appendFile, rename, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { franc } from 'franc-min';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(root, 'public');
@@ -115,18 +114,6 @@ function sourceQuery(platform, topic) {
   // Keep the first X pass deliberately small: phrases, terms, and OR are supported
   // by the observed provider response. Do not assume the full native X grammar.
   return clean.replace(/[()]/g, ' ').replace(/\bAND\b/gi, ' ').replace(/\s+/g, ' ').trim();
-}
-
-const foreignMarkers = new Set('el la los las un una unos unas que por para con del al es son está están como mais não uma um os as de do da dos das ist die der das ein eine und mit auf für von le les des est une un avec c est dans il lo au et'.split(/\s+/));
-
-function isLikelyEnglishText(text) {
-  const value = String(text || '').trim();
-  if (!value) return false;
-  const language = franc(value, { minLength: 10 });
-  if (language === 'eng' || language === 'und') return true;
-  if (/[^\x00-\x7F]/.test(value)) return false;
-  const words = value.toLowerCase().match(/[a-z]+/g) || [];
-  return words.filter(word => foreignMarkers.has(word)).length < 2;
 }
 
 function parsePostDate(value, { now = Date.now() } = {}) {
@@ -261,7 +248,7 @@ function sourceSku(platform){
   }[platform];
 }
 function sourceRequest(platform,query,limit){
-  if(platform==='x') return {query,limit,lang:'en',queryType:'Latest',requireSinglePage:false};
+  if(platform==='x') return {query,limit,queryType:'Latest',requireSinglePage:false};
   if(platform==='linkedin') return {query,datePosted:'last-week'};
   if(platform==='reddit') return {query,sort:'new',timeframe:'week'};
   if(platform==='youtube') return {query,uploadDate:'this_week'};
@@ -368,11 +355,10 @@ async function runSearch(platform, topic, limit){
   const normalizer=sourceNormalizer(platform);
   const sourceItems=extractSourceItems(platform,payload);
   const normalizedPosts=sourceItems.map((item,i)=>normalizer(item,topic,i));
-  const languageFiltered=platform==='linkedin'?normalizedPosts.filter(post=>!isLikelyEnglishText(post.text)).length:0;
-  const posts=platform==='linkedin'?normalizedPosts.filter(post=>isLikelyEnglishText(post.text)):normalizedPosts;
+  const posts=normalizedPosts;
   const range=dateRange(posts);
   const firstRaw=sourceItems[0]&&typeof sourceItems[0]==='object'?Object.keys(sourceItems[0]).slice(0,30):[];
-  const debug={platform,query:topic,sourceQuery:query,sku,requestBody,httpStatus:status,durationMs,provider:payload.provider||'AnyAPI',costUsd:Number(payload.costUsd||0),reportedItems:Number(payload.items||0),returned:posts.length,languageFiltered,rawFirstItemKeys:firstRaw,...range};
+  const debug={platform,query:topic,sourceQuery:query,sku,requestBody,httpStatus:status,durationMs,provider:payload.provider||'AnyAPI',costUsd:Number(payload.costUsd||0),reportedItems:Number(payload.items||0),returned:posts.length,rawFirstItemKeys:firstRaw,...range};
   await logDiagnostic('search.normalized',debug);
   return {demo:false,posts,costUsd:Number(payload.costUsd||0),provider:payload.provider||'AnyAPI',items:Number(payload.items||0),platform,debug};
 }
@@ -427,5 +413,5 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
 }catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); }
 export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
-export { extractLinkedInPosts, isLikelyEnglishText, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
+export { extractLinkedInPosts, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }

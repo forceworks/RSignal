@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { extractLinkedInPosts, isLikelyEnglishText, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
+import { extractLinkedInPosts, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.search.sanitized.json', import.meta.url), 'utf8'));
@@ -45,12 +45,6 @@ test('normalizes X createdAt and keeps the Latest query compatible', () => {
   }, 'Power Platform', 0);
   assert.equal(post.createdAt, '2026-08-06T12:00:02.000Z');
   assert.equal(post.author.username, 'fixture_author');
-});
-
-test('keeps English and rejects clearly non-English LinkedIn text', () => {
-  assert.equal(isLikelyEnglishText('The hidden cost of building your own CRM is maintenance.'), true);
-  assert.equal(isLikelyEnglishText('Los costos ocultos de construir su propio CRM son enormes.'), false);
-  assert.equal(isLikelyEnglishText('Power Platform Dataverse'), true);
 });
 
 test('normalizes the timestamped expansion source fixtures', () => {

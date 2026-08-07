@@ -24,8 +24,8 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 
 - Fresh feed with Best matches, Newest, and Momentum views.
 - Separate watchlists for each source.
-- X search with English filtering, `queryType: "Latest"`, author filters, and repost exclusion.
-- LinkedIn search with `datePosted: "last-week"` and local English detection.
+- X search with `queryType: "Latest"`, author filters, and repost exclusion.
+- LinkedIn search with `datePosted: "last-week"`.
 - Reddit keyword search and YouTube search for recent uploads.
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
 - Substack publication monitoring by publication URL.
@@ -39,7 +39,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 
 | Source | AnyAPI SKU | Request behavior | Watchlist entry |
 | --- | --- | --- | --- |
-| X | `twitter.search` | Latest results, English filter | One search topic per line |
+| X | `twitter.search` | Latest results | One search topic per line |
 | LinkedIn | `linkedin.search_posts` | Posts from the last week | One keyword or phrase query per line |
 | Reddit | `reddit.search` | New posts from the last week | Search text or Reddit operators |
 | YouTube | `youtube.search` | Recent uploads from the current week | Search text or phrase |
@@ -100,6 +100,10 @@ npm start
 
 For a packaged Windows directory build, run `npm run pack`. For a Windows x64 installer, run `npm run dist`.
 
+## Windows code signing
+
+Release builds use Azure Artifact Signing with the existing Forceworks Public Trust profile `AppCodeSigning` / `rclbc-appsource`. Azure credentials are supplied by the local or CI authentication environment and are never stored in this repository. The build fails instead of producing an unsigned installer when signing is unavailable.
+
 ## AnyAPI configuration
 
 Paste the AnyAPI key into Watchlists and select Save key. The key is stored locally in the Electron user-data directory and is never sent to the social platforms directly.
@@ -156,7 +160,7 @@ npm test
 npm audit --audit-level=high
 ```
 
-The tests cover LinkedIn timestamp parsing, X query behavior, source-query isolation, expansion-source normalization, sanitized fixtures, and English-language filtering.
+The tests cover LinkedIn timestamp parsing, X query behavior, source-query isolation, expansion-source normalization, and sanitized fixtures.
 
 ## License
 

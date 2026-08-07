@@ -21,6 +21,7 @@
     "productName": "RSignals",
     "artifactName": "RSignals-Setup-${version}.${ext}",
     "asar": true,
+    "forceCodeSigning": true,
     "files": [
       "main.js",
       "preload.cjs",
@@ -38,7 +39,16 @@
           ]
         }
       ],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "azureSignOptions": {
+        "publisherName": "Forceworks, LLC",
+        "endpoint": "https://eus.codesigning.azure.net/",
+        "certificateProfileName": "rclbc-appsource",
+        "codeSigningAccountName": "AppCodeSigning",
+        "fileDigest": "SHA256",
+        "timestampRfc3161": "http://timestamp.acs.microsoft.com",
+        "timestampDigest": "SHA256"
+      }
     },
     "nsis": {
       "oneClick": true,
@@ -53,7 +63,5 @@
       "installerHeaderIcon": "assets/icon.ico"
     }
   },
-  "dependencies": {
-    "franc-min": "6.2.0"
-  }
+  "dependencies": {}
 }
