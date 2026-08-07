@@ -1,0 +1,22 @@
+{
+  "output": {
+    "data": {
+      "items": [
+        {
+          "id": "fixture-tiktok-1",
+          "url": "https://www.tiktok.com/@fixture/video/fixture-tiktok-1",
+          "authorHandle": "fixture_creator",
+          "text": "[sanitized TikTok caption] AI agents",
+          "createdUtc": 1786101000,
+          "playCount": 3200,
+          "likeCount": 180,
+          "commentCount": 14,
+          "shareCount": 6
+        }
+      ]
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.002,
+  "items": 1
+}

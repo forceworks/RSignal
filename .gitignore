@@ -1,0 +1,15 @@
+node_modules/
+dist/
+
+# Local credentials and runtime state
+anyapi-key.txt
+seen-posts.json
+signal-debug.log
+anyapi-last-response-*.json
+diagnostic-fixtures/
+log.txt
+
+# Local secrets and temporary files
+.env
+.env.*
+*.tmp

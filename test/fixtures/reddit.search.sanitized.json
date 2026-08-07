@@ -1,0 +1,24 @@
+{
+  "output": {
+    "data": {
+      "posts": [
+        {
+          "id": "fixture-reddit-1",
+          "title": "[sanitized Reddit post] AI agents in enterprise SaaS",
+          "author": "fixture_author",
+          "score": 42,
+          "numComments": 7,
+          "url": "https://example.com/article",
+          "permalink": "/r/technology/comments/fixture-reddit-1/sanitized_post/",
+          "createdUtc": 1786101000,
+          "subreddit": "technology"
+        }
+      ],
+      "nextCursor": null
+    },
+    "found": true
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.0009,
+  "items": 1
+}

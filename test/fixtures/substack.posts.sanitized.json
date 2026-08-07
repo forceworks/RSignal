@@ -1,0 +1,23 @@
+{
+  "output": {
+    "data": {
+      "items": [
+        {
+          "postId": "fixture-substack-1",
+          "title": "[sanitized Substack post] Building software",
+          "subtitle": "A practical note",
+          "authorName": "Sanitized author",
+          "authorHandle": "sanitized_author",
+          "url": "https://sanitized.substack.com/p/fixture-post",
+          "createdUtc": 1786101000,
+          "reactionCount": 25,
+          "commentCount": 4,
+          "restackCount": 2
+        }
+      ]
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.00164,
+  "items": 1
+}

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Find fresh public conversations and posts worth joining." />
+  <title>RSignals — Opportunity Scanner</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><img class="mark" src="/rs-logo.png" alt="RSignals" /><div><strong>RSignals</strong><small>Opportunity scanner</small></div></div>
+      <nav>
+        <button class="nav active" data-view="feed">◉ <span>Opportunities</span><b id="navCount">0</b></button>
+        <button class="nav" data-view="saved">☆ <span>Saved</span><b id="savedCount">0</b></button>
+        <button class="nav" data-view="watchlists">⌁ <span>Watchlists</span></button>
+      </nav>
+      <div class="side-card">
+        <span class="eyebrow">Connection</span>
+        <div class="status"><i id="statusDot"></i><span id="statusText">Checking…</span></div>
+        <p>Your social credentials are never used. Public searches run through AnyAPI.</p>
+      </div>
+    </aside>
+
+    <main>
+      <header>
+        <div><span class="eyebrow">Personal intelligence</span><h1>Worth joining now</h1><p>Fresh conversations where you have something useful to add.</p></div>
+        <button id="scanButton" class="primary">Scan now</button>
+      </header>
+
+      <section id="feedView">
+        <div class="toolbar">
+          <div class="tabs"><button class="tab active" data-filter="all">Best matches</button><button class="tab" data-filter="fresh">Newest</button><button class="tab" data-filter="momentum">Momentum</button></div>
+          <span id="scanMeta">Not scanned yet</span>
+        </div>
+        <div id="feed" class="feed"></div>
+        <div id="empty" class="empty hidden"><h2>No opportunities yet</h2><p>Add watchlist topics, then run a scan.</p></div>
+      </section>
+
+      <section id="savedView" class="hidden"><div class="section-head"><h2>Saved opportunities</h2><p>Items you marked for later.</p></div><div id="savedFeed" class="feed"></div></section>
+
+      <section id="watchlistsView" class="hidden">
+        <div class="section-head"><h2>Watchlists</h2><p>Each source has its own compatible watchlist format.</p></div>
+        <div class="settings-card">
+          <label for="apiKey">AnyAPI key</label>
+          <div class="key-row"><input id="apiKey" type="password" placeholder="Paste your AnyAPI key" /><button id="saveKey" class="secondary">Save key</button></div>
+          <div class="hint">Stored in your Windows user profile. RSignals never signs into social accounts.</div>
+          <hr />
+          <label>Sources</label>
+          <div class="platform-picker"><label><input id="platformX" type="checkbox" checked /> <span class="platform x">X</span> Scan X</label><label><input id="platformLinkedIn" type="checkbox" checked /> <span class="platform linkedin">in</span> Scan LinkedIn</label><label><input id="platformReddit" type="checkbox" /> <span class="platform reddit">R</span> Scan Reddit</label><label><input id="platformYoutube" type="checkbox" /> <span class="platform youtube">▶</span> Scan YouTube</label><label><input id="platformTiktok" type="checkbox" /> <span class="platform tiktok">♪</span> Scan TikTok</label><label><input id="platformSubstack" type="checkbox" /> <span class="platform substack">S</span> Scan Substack</label></div>
+          <div class="hint">All sources use the same AnyAPI key. Searches are limited to English where the source supports it. New sources are opt-in.</div>
+          <label for="queriesX">X search topics</label>
+          <textarea id="queriesX" rows="6"></textarea>
+          <div class="hint">X supports author filters such as <code>from:elonmusk</code> and repost exclusion with <code>-is:retweet</code>.</div>
+          <label for="queriesLinkedIn">LinkedIn search topics</label>
+          <textarea id="queriesLinkedIn" rows="6"></textarea>
+          <div class="hint">Use LinkedIn-compatible keywords and phrases. X operators are not sent to LinkedIn.</div>
+          <label for="queriesReddit">Reddit search topics</label>
+          <textarea id="queriesReddit" rows="4" placeholder="AI agents enterprise SaaS"></textarea>
+          <div class="hint">Reddit search supports terms plus operators such as <code>subreddit:technology</code> and <code>author:name</code>.</div>
+          <label for="queriesYoutube">YouTube search topics</label>
+          <textarea id="queriesYoutube" rows="4" placeholder="Microsoft Copilot"></textarea>
+          <div class="hint">Use plain keywords or phrases. YouTube searches recent uploads for the current watchlist.</div>
+          <label for="queriesTiktok">TikTok hashtags</label>
+          <textarea id="queriesTiktok" rows="4" placeholder="#aiagents"></textarea>
+          <div class="hint">Enter one hashtag per line, with or without <code>#</code>. RSignals uses the timestamped hashtag endpoint.</div>
+          <label for="queriesSubstack">Substack publication URLs</label>
+          <textarea id="queriesSubstack" rows="4" placeholder="https://example.substack.com"></textarea>
+          <div class="hint">Substack is publication-based, not keyword search. Enter one publication URL per line.</div>
+          <div class="settings-row"><div>
+            <label>Maximum results per query <input id="limit" type="number" min="1" max="50" value="12" /></label>
+            <label>Only posts from last <input id="maxAgeHours" type="number" min="0.25" max="168" step="0.25" value="3" /> hours</label>
+            <label>Scan automatically every <input id="scanInterval" type="number" min="5" max="240" step="5" value="15" /> minutes</label>
+            <label>Notify for fit scores of at least <input id="notifyScore" type="number" min="1" max="99" value="70" /></label>
+            <label><input id="notificationsEnabled" type="checkbox" checked /> Show Windows toast alerts</label>
+            <label><input id="startWithWindows" type="checkbox" /> Start RSignals with Windows</label>
+          </div><button id="saveSettings" class="primary">Save settings</button></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <dialog id="detailDialog">
+    <button class="close" id="closeDialog">×</button>
+    <div id="detailContent"></div>
+  </dialog>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

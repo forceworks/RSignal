@@ -1,0 +1,59 @@
+{
+  "name": "signal-desktop",
+  "version": "1.4.0",
+  "description": "RSignals opportunity scanner for fresh public conversations.",
+  "type": "module",
+  "main": "main.js",
+  "author": "Steve Mordue",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist": "electron-builder --win nsis",
+    "pack": "electron-builder --win dir"
+  },
+  "devDependencies": {
+    "electron": "43.3.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.signal.scanner",
+    "productName": "RSignals",
+    "artifactName": "RSignals-Setup-${version}.${ext}",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.cjs",
+      "server.js",
+      "public/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RSignals",
+      "runAfterFinish": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
+    }
+  },
+  "dependencies": {
+    "franc-min": "6.2.0"
+  }
+}

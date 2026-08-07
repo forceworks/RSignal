@@ -1,0 +1,39 @@
+{
+  "output": {
+    "found": 5,
+    "data": {
+      "posts": [
+        {
+          "createdUtc": 1785811801,
+          "text": "[sanitized LinkedIn post 1]",
+          "url": "https://www.linkedin.com/posts/sanitized-1-activity-7490237580488253440-fixture"
+        },
+        {
+          "createdUtc": 1785939242,
+          "text": "[sanitized LinkedIn post 2]",
+          "url": "https://www.linkedin.com/posts/sanitized-2-activity-7490772107048464384-fixture"
+        },
+        {
+          "createdUtc": 1785985389,
+          "text": "[sanitized LinkedIn post 3]",
+          "url": "https://www.linkedin.com/posts/sanitized-3-activity-7490965663843487744-fixture"
+        },
+        {
+          "createdUtc": 1786010401,
+          "text": "[sanitized LinkedIn post 4]",
+          "url": "https://www.linkedin.com/posts/sanitized-4-activity-7491070569312890880-fixture"
+        },
+        {
+          "createdUtc": 1785860040,
+          "text": "[sanitized LinkedIn post 5]",
+          "url": "https://www.linkedin.com/posts/sanitized-5-activity-7490439912853442560-fixture"
+        }
+      ]
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.002,
+  "items": 5,
+  "replayed": true,
+  "resultId": "[sanitized-result-id]"
+}
