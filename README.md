@@ -4,6 +4,10 @@ RSignals is a Windows desktop opportunity scanner for finding fresh public conve
 
 It searches public sources through AnyAPI, normalizes results into one feed, scores likely opportunities, and lets you save, hide, inspect, and open posts without signing into the social platforms.
 
+## Read-only behavior
+
+RSignals does not automatically act on your behalf. It never creates posts, comments, likes, reposts, messages, follows, or other social activity. It only reads public results through AnyAPI and can open the source link so you can decide what to do manually.
+
 ## Current status
 
 Version 1.4.0 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
