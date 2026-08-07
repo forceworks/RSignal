@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { extractLinkedInPosts, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
+import { extractLinkedInPosts, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.search.sanitized.json', import.meta.url), 'utf8'));
@@ -45,6 +45,13 @@ test('normalizes X createdAt and keeps the Latest query compatible', () => {
   }, 'Power Platform', 0);
   assert.equal(post.createdAt, '2026-08-06T12:00:02.000Z');
   assert.equal(post.author.username, 'fixture_author');
+});
+
+test('identifies comments and replies without rejecting ordinary posts', () => {
+  assert.equal(isCommentRecord({ referenced_tweets: [{ type: 'replied_to', id: '123' }] }, 'x'), true);
+  assert.equal(isCommentRecord({ in_reply_to_status_id_str: '123' }, 'x'), true);
+  assert.equal(isCommentRecord({ urn: 'urn:li:comment:(activity,comment)' }, 'linkedin'), true);
+  assert.equal(isCommentRecord({ url: 'https://www.linkedin.com/posts/fixture-activity-123' }, 'linkedin'), false);
 });
 
 test('normalizes the timestamped expansion source fixtures', () => {

@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.1 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.2 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -26,6 +26,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Separate watchlists for each source.
 - X search with `queryType: "Latest"`, author filters, and repost exclusion.
 - LinkedIn search with `datePosted: "last-week"`.
+- Comment and reply records are excluded when the source identifies them; the feed keeps original posts.
 - Reddit keyword search and YouTube search for recent uploads.
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
 - Substack publication monitoring by publication URL.
@@ -121,7 +122,7 @@ ANYAPI_SUBSTACK_SEARCH_SKU
 
 ## Freshness, timestamps, and deduplication
 
-RSignals marks a post as seen only after it has a normalized publication timestamp, passed the configured maximum-age rule, and passed current-scan deduplication.
+RSignals marks a post as seen only after it has a normalized publication timestamp, passed the configured maximum-age rule, passed current-scan deduplication, and survived the comment/reply filter.
 
 Timestamp handling supports Unix seconds, Unix milliseconds, ISO dates, relative values, and the published/created field variants returned by AnyAPI. Card timestamps recalculate while the app is open, so `3m` can become `13m`.
 

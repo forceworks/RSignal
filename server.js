@@ -116,6 +116,33 @@ function sourceQuery(platform, topic) {
   return clean.replace(/[()]/g, ' ').replace(/\bAND\b/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function isCommentRecord(raw, platform) {
+  if (!raw || typeof raw !== 'object') return false;
+  const candidates = [raw, raw.post, raw.tweet, raw.activity].filter(value => value && typeof value === 'object');
+  const valueFor = keys => firstValue(...candidates.flatMap(candidate => keys.map(key => candidate[key])));
+  const type = String(valueFor(['type', 'postType', 'post_type', 'contentType', 'content_type']) || '').toLowerCase();
+  if (['comment', 'reply', 'replied_to', 'comment_reply'].includes(type)) return true;
+  const flag = valueFor(['isComment', 'is_comment', 'isReply', 'is_reply', 'isCommentaryReply', 'is_commentary_reply']);
+  if (flag === true || String(flag).toLowerCase() === 'true') return true;
+  if (valueFor(['parentComment', 'parent_comment', 'parentCommentId', 'parent_comment_id', 'parentId', 'parent_id', 'replyTo', 'reply_to', 'replyToId', 'reply_to_id']) != null) return true;
+
+  if (platform === 'x') {
+    const references = candidates.flatMap(candidate => {
+      const value = firstValue(candidate.referenced_tweets, candidate.referencedTweets);
+      return Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
+    });
+    if (references.some(reference => String(reference?.type || '').toLowerCase() === 'replied_to')) return true;
+    if (valueFor(['in_reply_to_status_id', 'in_reply_to_status_id_str', 'inReplyToStatusId', 'in_reply_to_user_id', 'inReplyToUserId']) != null) return true;
+  }
+
+  if (platform === 'linkedin') {
+    const urn = String(valueFor(['urn', 'activityUrn', 'activity_urn', 'commentUrn', 'comment_urn']) || '');
+    const url = String(valueFor(['url', 'postUrl', 'post_url', 'linkedinUrl', 'linkedin_url', 'link']) || '');
+    if (/comment/i.test(urn) || /\/comments?\//i.test(url)) return true;
+  }
+  return false;
+}
+
 function parsePostDate(value, { now = Date.now() } = {}) {
   if (value === undefined || value === null || value === '') return null;
   if (typeof value === 'object' && !Array.isArray(value)) {
@@ -354,11 +381,12 @@ async function runSearch(platform, topic, limit){
   await saveAnyApiResponse(platform, payload);
   const normalizer=sourceNormalizer(platform);
   const sourceItems=extractSourceItems(platform,payload);
-  const normalizedPosts=sourceItems.map((item,i)=>normalizer(item,topic,i));
+  const commentFiltered=sourceItems.filter(item=>isCommentRecord(item,platform)).length;
+  const normalizedPosts=sourceItems.filter(item=>!isCommentRecord(item,platform)).map((item,i)=>normalizer(item,topic,i));
   const posts=normalizedPosts;
   const range=dateRange(posts);
   const firstRaw=sourceItems[0]&&typeof sourceItems[0]==='object'?Object.keys(sourceItems[0]).slice(0,30):[];
-  const debug={platform,query:topic,sourceQuery:query,sku,requestBody,httpStatus:status,durationMs,provider:payload.provider||'AnyAPI',costUsd:Number(payload.costUsd||0),reportedItems:Number(payload.items||0),returned:posts.length,rawFirstItemKeys:firstRaw,...range};
+  const debug={platform,query:topic,sourceQuery:query,sku,requestBody,httpStatus:status,durationMs,provider:payload.provider||'AnyAPI',costUsd:Number(payload.costUsd||0),reportedItems:Number(payload.items||0),returned:posts.length,commentFiltered,rawFirstItemKeys:firstRaw,...range};
   await logDiagnostic('search.normalized',debug);
   return {demo:false,posts,costUsd:Number(payload.costUsd||0),provider:payload.provider||'AnyAPI',items:Number(payload.items||0),platform,debug};
 }
@@ -413,5 +441,5 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
 }catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); }
 export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
-export { extractLinkedInPosts, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
+export { extractLinkedInPosts, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }
