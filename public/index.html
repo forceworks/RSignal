@@ -74,6 +74,9 @@
             <label>Scan automatically every <input id="scanInterval" type="number" min="5" max="240" step="5" value="15" /> minutes</label>
             <label>Notify for fit scores of at least <input id="notifyScore" type="number" min="1" max="99" value="70" /></label>
             <label><input id="notificationsEnabled" type="checkbox" checked /> Show Windows toast alerts</label>
+            <label><input id="quietHoursEnabled" type="checkbox" /> Pause automatic scans during quiet hours</label>
+            <div class="quiet-hours"><label>Quiet hours from <input id="quietStart" type="time" value="22:00" /></label><label>to <input id="quietEnd" type="time" value="07:00" /></label></div>
+            <div class="quiet-days" aria-label="Quiet days"><span>Quiet days</span><label><input class="quiet-day" type="checkbox" value="1" checked /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" checked /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" checked /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" checked /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" checked /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" /> Sun</label></div>
             <label><input id="startWithWindows" type="checkbox" /> Start RSignals with Windows</label>
           </div><button id="saveSettings" class="primary">Save settings</button></div>
         </div>
