@@ -21,6 +21,7 @@
         <div class="status"><i id="statusDot"></i><span id="statusText">Checking…</span></div>
         <p>Your social credentials are never used. Public searches run through AnyAPI.</p>
       </div>
+      <div class="rail-footer" aria-label="Application version"><span id="appVersion">RSignals v—</span></div>
     </aside>
 
     <main>
@@ -76,7 +77,7 @@
             <label><input id="notificationsEnabled" type="checkbox" checked /> Show Windows toast alerts</label>
             <label><input id="quietHoursEnabled" type="checkbox" /> Pause automatic scans during quiet hours</label>
             <div class="quiet-hours"><label>Quiet hours from <input id="quietStart" type="time" value="22:00" /></label><label>to <input id="quietEnd" type="time" value="07:00" /></label></div>
-            <div class="quiet-days" aria-label="Quiet days"><span>Quiet days</span><label><input class="quiet-day" type="checkbox" value="1" checked /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" checked /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" checked /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" checked /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" checked /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" /> Sun</label></div>
+            <div class="quiet-days" aria-label="Quiet days"><span>Quiet days</span><label><input class="quiet-day" type="checkbox" value="1" /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" checked /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" checked /> Sun</label></div>
             <label><input id="startWithWindows" type="checkbox" /> Start RSignals with Windows</label>
           </div><button id="saveSettings" class="primary">Save settings</button></div>
         </div>

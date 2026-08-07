@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(root, 'public');
+const appVersion = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
 function getDataDir() { return process.env.SIGNAL_DATA_DIR || root; }
 const port = Number(process.env.PORT || 3000);
 let activeApiKey = '';
@@ -436,7 +437,7 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
   }
   if(req.method==='POST'&&url.pathname==='/api/key'){ const body=JSON.parse((await collect(req))||'{}'); const key=String(body.key||'').trim().replace(/^Bearer\s+/i,''); if(!key) return sendJson(res,400,{error:'Enter an AnyAPI key.'}); await writeFile(join(getDataDir(),'anyapi-key.txt'),key+'\n','utf8'); return sendJson(res,200,{configured:true}); }
   if(req.method==='DELETE'&&url.pathname==='/api/key'){ await writeFile(join(getDataDir(),'anyapi-key.txt'),'','utf8'); return sendJson(res,200,{configured:false}); }
-  if(req.method==='GET'&&url.pathname==='/api/status'){ return sendJson(res,200,{configured:Boolean(await getAnyApiKey()),skus:Object.fromEntries(['x','linkedin','reddit','youtube','tiktok','substack'].map(platform=>[platform,sourceSku(platform)]))}); }
+  if(req.method==='GET'&&url.pathname==='/api/status'){ return sendJson(res,200,{configured:Boolean(await getAnyApiKey()),version:appVersion,skus:Object.fromEntries(['x','linkedin','reddit','youtube','tiktok','substack'].map(platform=>[platform,sourceSku(platform)]))}); }
   if(req.method==='GET'&&url.pathname==='/api/log'){ try{ const text=await readFile(join(getDataDir(),'signal-debug.log'),'utf8'); return sendJson(res,200,{log:text.split('\n').filter(Boolean).slice(-300).join('\n')}); }catch{return sendJson(res,200,{log:''});} }
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
 }catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); }
