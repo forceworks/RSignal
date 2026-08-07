@@ -14,6 +14,10 @@ Version 1.4.0 is a Windows x64 Electron application. X and LinkedIn are enabled 
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
+## Author
+
+Created and maintained by Steve Mordue.
+
 This is the public RSignal snapshot. Active development, experiments, and unreleased work remain in the private `RSignalDev` repository.
 
 ## Features
