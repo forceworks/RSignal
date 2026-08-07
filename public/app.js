@@ -1,8 +1,7 @@
 const defaults = [
-  'Power Platform OR Dataverse OR Dynamics 365',
-  'Microsoft Copilot OR Microsoft Scout OR OpenClaw',
-  'build your own CRM OR vibe coded CRM',
-  'AI agents enterprise SaaS'
+  'workflow automation OR business software',
+  'enterprise AI workflow',
+  'developer tools OR SaaS'
 ];
 const emptyQueries=[];
 const state={

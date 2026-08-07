@@ -51,8 +51,8 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 X supports filters such as:
 
 ```text
-"Microsoft Copilot" OR "Microsoft Scout" OpenClaw -is:retweet
-from:elonmusk AI agents
+"workflow automation" OR "business software" -is:retweet
+from:example_account "enterprise AI"
 ```
 
 Use the username without `@` in `from:`. X-specific operators are removed before queries are sent to other sources.
@@ -60,8 +60,8 @@ Use the username without `@` in `from:`. X-specific operators are removed before
 LinkedIn works best with plain keywords and quoted phrases:
 
 ```text
-"AI agents" enterprise SaaS
-"build your own CRM" OR "vibe coded CRM"
+"enterprise AI" workflow automation
+"developer tools" OR "business software"
 ```
 
 Reddit accepts terms and operators such as `subreddit:technology`, `author:username`, `title:agents`, and boolean `AND`/`OR`/`NOT`.
