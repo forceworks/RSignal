@@ -9,13 +9,14 @@ let mainWindow;
 let tray;
 let embeddedServer;
 let quitting = false;
+const activeNotifications = new Set();
 
 function appIcon() {
   return nativeImage.createFromPath(join(root, 'public', 'rs-logo.png'));
 }
 
 function trayIcon() {
-  return nativeImage.createFromPath(join(root, 'public', 'rs-logo.png'));
+  return nativeImage.createFromPath(join(root, 'assets', 'tray.png'));
 }
 
 function showWindow() {
@@ -76,17 +77,23 @@ function createTray() {
 
 ipcMain.handle('notify', (_event, payload) => {
   if (!Notification.isSupported()) return false;
-  const notification = new Notification({
-    title: payload?.title || 'RSignals',
-    body: payload?.body || 'Fresh opportunities found.',
-    icon: appIcon()
-  });
-  notification.on('click', () => {
-    showWindow();
-    if (payload?.url) shell.openExternal(payload.url);
-  });
-  notification.show();
-  return true;
+  try {
+    const notification = new Notification({
+      title: payload?.title || 'RSignals',
+      body: payload?.body || 'Fresh opportunities found.',
+      icon: appIcon()
+    });
+    activeNotifications.add(notification);
+    notification.on('close', () => activeNotifications.delete(notification));
+    notification.on('click', () => {
+      showWindow();
+      if (payload?.url) shell.openExternal(payload.url);
+    });
+    notification.show();
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 ipcMain.handle('open-external', (_event, url) =>
@@ -100,8 +107,8 @@ ipcMain.handle('set-startup', (_event, enabled) => {
 });
 ipcMain.handle('get-startup', () => app.getLoginItemSettings().openAtLogin);
 
+app.setAppUserModelId('com.signal.scanner');
 app.whenReady().then(async () => {
-  app.setAppUserModelId('com.signal.scanner');
   process.env.SIGNAL_DATA_DIR = app.getPath('userData');
   try {
     embeddedServer = await startSignalServer({ port });
