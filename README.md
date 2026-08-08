@@ -136,6 +136,16 @@ Timestamp handling supports Unix seconds, Unix milliseconds, ISO dates, relative
 
 RSignals does not use platform login cookies or credentials. Never commit API keys, runtime files, logs, diagnostic output, `node_modules`, or `dist`; the repository `.gitignore` excludes these paths.
 
+### Secret-scanning pre-commit hook
+
+This repository is public, so a `pre-commit` hook in `.githooks/` rejects commits that stage a credential file or an added line matching a known secret format. Git does not enable a repository's hooks automatically; run this once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook blocks credential and runtime filenames even when `git add -f` was used to bypass `.gitignore`. For a genuine false positive, append `pragma: allowlist secret` to the line. To override the hook for a single commit, use `git commit --no-verify`.
+
 ## Project layout
 
 ```text
