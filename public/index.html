@@ -15,6 +15,7 @@
         <button class="nav active" data-view="feed">◉ <span>Opportunities</span><b id="navCount">0</b></button>
         <button class="nav" data-view="saved">☆ <span>Saved</span><b id="savedCount">0</b></button>
         <button class="nav" data-view="watchlists">⌁ <span>Watchlists</span></button>
+        <button class="nav" data-view="settings">⚙ <span>Settings</span></button>
       </nav>
       <div class="side-card">
         <span class="eyebrow">Connection</span>
@@ -69,6 +70,12 @@
           <label for="queriesSubstack">Substack publication URLs</label>
           <textarea id="queriesSubstack" rows="4" placeholder="https://example.substack.com"></textarea>
           <div class="hint">Substack is publication-based, not keyword search. Enter one publication URL per line.</div>
+        </div>
+      </section>
+
+      <section id="settingsView" class="hidden">
+        <div class="section-head"><h2>Settings</h2><p>Control scanning, notifications, quiet hours, and startup behavior.</p></div>
+        <div class="settings-card">
           <div class="settings-row"><div>
             <label>Maximum results per query <input id="limit" type="number" min="1" max="50" value="12" /></label>
             <label>Only posts from last <input id="maxAgeHours" type="number" min="0.25" max="168" step="0.25" value="3" /> hours</label>
