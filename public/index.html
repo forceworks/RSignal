@@ -76,17 +76,33 @@
       <section id="settingsView" class="hidden">
         <div class="section-head"><h2>Settings</h2><p>Control scanning, notifications, quiet hours, and startup behavior.</p></div>
         <div class="settings-card">
-          <div class="settings-row"><div>
-            <label>Maximum results per query <input id="limit" type="number" min="1" max="50" value="12" /></label>
-            <label>Only posts from last <input id="maxAgeHours" type="number" min="0.25" max="168" step="0.25" value="3" /> hours</label>
-            <label>Scan automatically every <input id="scanInterval" type="number" min="5" max="240" step="5" value="15" /> minutes</label>
-            <label>Notify for fit scores of at least <input id="notifyScore" type="number" min="1" max="99" value="70" /></label>
-            <label><input id="notificationsEnabled" type="checkbox" checked /> Show Windows toast alerts</label>
-            <label><input id="quietHoursEnabled" type="checkbox" /> Pause automatic scans during quiet hours</label>
-            <div class="quiet-hours"><label>Quiet hours from <input id="quietStart" type="time" value="22:00" /></label><label>to <input id="quietEnd" type="time" value="07:00" /></label></div>
-            <div class="quiet-days" aria-label="Quiet days"><span>Quiet days (all day)</span><label><input class="quiet-day" type="checkbox" value="1" /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" checked /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" checked /> Sun</label></div>
-            <label><input id="startWithWindows" type="checkbox" /> Start RSignals with Windows</label>
-          </div><button id="saveSettings" class="primary">Save settings</button></div>
+          <div class="settings-grid">
+            <section class="settings-group">
+              <div class="settings-group-head"><h3>Scanning</h3><p>Choose how much to fetch and how often automatic scans run.</p></div>
+              <label class="setting-field"><span>Maximum results per query</span><input id="limit" type="number" min="1" max="50" value="12" /></label>
+              <label class="setting-field"><span>Freshness window</span><span class="setting-input-with-suffix"><input id="maxAgeHours" type="number" min="0.25" max="168" step="0.25" value="3" /><small>hours</small></span></label>
+              <label class="setting-field"><span>Automatic scan interval</span><span class="setting-input-with-suffix"><input id="scanInterval" type="number" min="5" max="240" step="5" value="15" /><small>minutes</small></span></label>
+            </section>
+
+            <section class="settings-group">
+              <div class="settings-group-head"><h3>Notifications</h3><p>Use Windows alerts to call attention to strong matches.</p></div>
+              <label class="setting-field"><span>Minimum fit score</span><span class="setting-input-with-suffix"><input id="notifyScore" type="number" min="1" max="99" value="70" /><small>score</small></span></label>
+              <label class="setting-toggle"><input id="notificationsEnabled" type="checkbox" checked /><span>Show Windows toast alerts</span></label>
+            </section>
+
+            <section class="settings-group settings-group-wide">
+              <div class="settings-group-head"><h3>Quiet hours</h3><p>Pause automatic scans during the selected times and days. Manual scans remain available.</p></div>
+              <label class="setting-toggle"><input id="quietHoursEnabled" type="checkbox" /><span>Pause automatic scans during quiet hours</span></label>
+              <div class="quiet-hours"><label>From <input id="quietStart" type="time" value="22:00" /></label><label>To <input id="quietEnd" type="time" value="07:00" /></label></div>
+              <div class="quiet-days" aria-label="Quiet days"><span>All day on</span><label><input class="quiet-day" type="checkbox" value="1" /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" checked /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" checked /> Sun</label></div>
+            </section>
+
+            <section class="settings-group settings-group-wide">
+              <div class="settings-group-head"><h3>Startup</h3><p>Open RSignals automatically when you sign in to Windows.</p></div>
+              <label class="setting-toggle"><input id="startWithWindows" type="checkbox" /><span>Start RSignals with Windows</span></label>
+            </section>
+          </div>
+          <div class="settings-actions"><button id="saveSettings" class="primary">Save settings</button></div>
         </div>
       </section>
 

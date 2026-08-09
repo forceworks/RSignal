@@ -29,7 +29,7 @@ header{padding:32px 40px;background:#000;border:0;color:#fff}
 header .eyebrow{color:#9ca3af}
 h1{font-family:inherit;font-size:32px;font-weight:900;letter-spacing:-.03em;line-height:1.08;margin:0 0 10px}
 header p{color:rgba(255,255,255,.82);font-size:14px;font-weight:300;line-height:1.5}
-#feedView,#savedView,#watchlistsView{padding:24px 40px}
+  #feedView,#savedView,#watchlistsView,#settingsView{padding:24px 40px}
 .toolbar{padding:0 0 20px}
 .tabs{background:#f3f4f6;border:1px solid var(--line);border-radius:6px}
 .tab{border-radius:6px;font-weight:600}
@@ -44,10 +44,30 @@ header p{color:rgba(255,255,255,.82);font-size:14px;font-weight:300;line-height:
 .secondary,.icon-btn{border-radius:6px}
 .section-head{padding:0 0 20px}
 .section-head h2{font-family:inherit;font-size:24px;font-weight:900;letter-spacing:-.03em}
-.settings-card{border-radius:8px;box-shadow:none}
+  .settings-card{border-radius:8px;box-shadow:none}
+  .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+  .settings-group{border:1px solid var(--line);border-radius:8px;padding:18px;background:#fff}
+  .settings-group-wide{grid-column:1/-1}
+  .settings-group-head{margin-bottom:16px}
+  .settings-group-head h3{margin:0 0 5px;font-size:16px;font-weight:800;letter-spacing:-.01em}
+  .settings-group-head p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+  .setting-field{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:11px 0;border-top:1px solid #f0f1f3;color:var(--ink);font-size:14px}
+  .setting-field:first-of-type{border-top:0;padding-top:0}
+  .setting-field input[type=number]{width:86px;text-align:right}
+  .setting-input-with-suffix{display:flex;align-items:center;gap:8px;flex:none}
+  .setting-input-with-suffix small{width:48px;color:var(--muted);font-size:12px}
+  .setting-toggle{display:flex;align-items:center;gap:9px;color:var(--ink);font-size:14px}
+  .setting-toggle input[type=checkbox]{flex:none;margin:0}
+  .settings-group .quiet-hours{margin-top:18px;padding-top:16px;border-top:1px solid #f0f1f3}
+  .settings-group .quiet-hours label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+  .settings-group .quiet-days{margin-top:14px;padding:12px;background:#f8f9fa;border:1px solid #f0f1f3;border-radius:6px;gap:12px}
+  .settings-group .quiet-days span{font-size:12px;font-weight:700;color:var(--muted);margin-right:4px}
+  .settings-group .quiet-days label{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:13px}
+  .settings-group .quiet-days input[type=checkbox]{margin:0}
+  .settings-actions{display:flex;justify-content:flex-end;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
 .settings-card textarea{background:#fff;border-color:var(--line);border-radius:6px}
 .settings-card input{border-color:var(--line);border-radius:6px}
 .settings-card input:focus,.settings-card textarea:focus{outline:2px solid rgba(250,78,78,.2);border-color:var(--accent)}
 .hint{color:var(--muted)}
 dialog{border-radius:8px;box-shadow:0 20px 60px rgba(16,24,40,.2)}
-@media(max-width:800px){main{padding:0}#feedView,#savedView,#watchlistsView{padding:20px 18px}.sidebar{padding:15px}.brand{padding:0}.nav{padding:8px 12px}}
+  @media(max-width:800px){main{padding:0}#feedView,#savedView,#watchlistsView,#settingsView{padding:20px 18px}.settings-grid{grid-template-columns:1fr}.settings-group-wide{grid-column:auto}.sidebar{padding:15px}.brand{padding:0}.nav{padding:8px 12px}}
