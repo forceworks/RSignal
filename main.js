@@ -12,7 +12,7 @@ let quitting = false;
 const activeNotifications = new Set();
 
 function appIcon() {
-  return nativeImage.createFromPath(join(root, 'public', 'rs-logo.png'));
+  return nativeImage.createFromPath(join(root, 'assets', 'icon.ico'));
 }
 
 function trayIcon() {
