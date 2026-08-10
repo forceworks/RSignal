@@ -21,6 +21,10 @@
     "productName": "RSignals",
     "artifactName": "RSignals-Setup-${version}.${ext}",
     "asar": true,
+    "asarUnpack": [
+      "assets/icon.ico",
+      "assets/tray.png"
+    ],
     "forceCodeSigning": true,
     "files": [
       "main.js",

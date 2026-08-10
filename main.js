@@ -11,12 +11,18 @@ let embeddedServer;
 let quitting = false;
 const activeNotifications = new Set();
 
+function assetPath(filename) {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'app.asar.unpacked', 'assets', filename)
+    : join(root, 'assets', filename);
+}
+
 function appIcon() {
-  return nativeImage.createFromPath(join(root, 'assets', 'icon.ico'));
+  return nativeImage.createFromPath(assetPath('icon.ico'));
 }
 
 function trayIcon() {
-  return nativeImage.createFromPath(join(root, 'assets', 'tray.png'));
+  return nativeImage.createFromPath(assetPath('tray.png'));
 }
 
 function showWindow() {
