@@ -275,9 +275,9 @@ function sourceSku(platform){
     substack:process.env.ANYAPI_SUBSTACK_SEARCH_SKU||'substack.posts'
   }[platform];
 }
-function sourceRequest(platform,query,limit){
+function sourceRequest(platform,query,limit,maxAgeHours=168){
   if(platform==='x') return {query,limit,queryType:'Latest',requireSinglePage:false};
-  if(platform==='linkedin') return {query,datePosted:'last-week'};
+  if(platform==='linkedin') return {query,datePosted:maxAgeHours<=1?'last-hour':maxAgeHours<=24?'last-day':'last-week'};
   if(platform==='reddit') return {query,sort:'new',timeframe:'week'};
   if(platform==='youtube') return {query,uploadDate:'this_week'};
   if(platform==='tiktok') return {hashtag:String(query).replace(/^#/,'').trim(),limit:Math.min(limit,20)};
@@ -369,7 +369,7 @@ async function saveAnyApiResponse(platform, payload) {
   } catch {}
 }
 
-async function runSearch(platform, topic, limit){
+async function runSearch(platform, topic, limit, maxAgeHours){
   const key=await getAnyApiKey();
   const query=sourceQuery(platform, topic);
   if(!key){
@@ -377,7 +377,7 @@ async function runSearch(platform, topic, limit){
     return {demo:true,posts,costUsd:0,platform,debug:{platform,query:topic,sourceQuery:query,demo:true,sku:'demo',requestBody:null,httpStatus:200,returned:posts.length,...dateRange(posts)}};
   }
   const sku=sourceSku(platform);
-  const bodies=[sourceRequest(platform,query,limit)];
+  const bodies=[sourceRequest(platform,query,limit,maxAgeHours)];
   const {payload,status,requestBody,durationMs}=await callAnyApi(sku,key,bodies,{platform,query:topic,sourceQuery:query});
   await saveAnyApiResponse(platform, payload);
   const normalizer=sourceNormalizer(platform);
@@ -409,7 +409,7 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
     if(!platforms.length) return sendJson(res,400,{error:'Select at least one source.'});
     const missingPlatform=platforms.find(platform=>!queriesByPlatform[platform]?.length);
     if(missingPlatform) return sendJson(res,400,{error:`Add at least one ${sourceLabel(missingPlatform)} watchlist entry.`});
-    const jobs=[]; for(const platform of platforms) for(const q of queriesByPlatform[platform]) jobs.push({platform,query:q,promise:runSearch(platform,q,limit)});
+    const jobs=[]; for(const platform of platforms) for(const q of queriesByPlatform[platform]) jobs.push({platform,query:q,promise:runSearch(platform,q,limit,maxAgeHours)});
     const settled=await Promise.allSettled(jobs.map(j=>j.promise));
     const failures=settled.map((r,i)=>r.status==='rejected'?`${sourceLabel(jobs[i].platform)} (${jobs[i].query}): ${r.reason?.message||String(r.reason)}`:null).filter(Boolean);
     const results=settled.filter(r=>r.status==='fulfilled').map(r=>r.value);

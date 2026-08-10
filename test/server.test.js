@@ -67,6 +67,9 @@ test('normalizes the timestamped expansion source fixtures', () => {
 });
 
 test('builds source-specific expansion requests without leaking X syntax', () => {
+  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 1), { query: 'AI agents', datePosted: 'last-hour' });
+  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 24), { query: 'AI agents', datePosted: 'last-day' });
+  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 168), { query: 'AI agents', datePosted: 'last-week' });
   assert.deepEqual(sourceRequest('reddit', 'AI agents', 12), { query: 'AI agents', sort: 'new', timeframe: 'week' });
   assert.deepEqual(sourceRequest('youtube', 'Microsoft Copilot', 12), { query: 'Microsoft Copilot', uploadDate: 'this_week' });
   assert.deepEqual(sourceRequest('tiktok', '#aiagents', 12), { hashtag: 'aiagents', limit: 12 });
