@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.11 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.12 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -25,7 +25,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Fresh feed with Best matches, Newest, and Momentum views.
 - Separate watchlists for each source.
 - X search with `queryType: "Latest"`, author filters, and repost exclusion.
-- LinkedIn search with `datePosted: "last-week"`.
+- LinkedIn search with a source-side date window aligned to the configured freshness period.
 - Comment and reply records are excluded when the source identifies them; the feed keeps original posts.
 - Reddit keyword search and YouTube search for recent uploads.
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
@@ -75,9 +75,9 @@ Substack is publication-based rather than keyword-based. Enter a publication URL
 
 ## Install the Windows application
 
-1. Download the latest RSignals ZIP release.
-2. Extract it to a local folder.
-3. Run the packaged installer when one is provided.
+1. Download the latest RSignals Windows x64 ZIP release.
+2. Extract the ZIP to a local folder.
+3. Run `RSignals.exe` from the extracted folder.
 
 When building from source, run `Build and Install Signal.bat`. The legacy filename is retained for compatibility; the installed product, shortcut, window, tray menu, and installer artifact are branded RSignals.
 
