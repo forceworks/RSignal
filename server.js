@@ -268,7 +268,7 @@ function sourceLabel(platform){ return sourceLabels[platform]||platform; }
 function sourceSku(platform){
   return {
     x:process.env.ANYAPI_TWITTER_SEARCH_SKU||'twitter.search',
-    linkedin:process.env.ANYAPI_LINKEDIN_SEARCH_SKU||'linkedin.search_posts',
+    linkedin:process.env.ANYAPI_LINKEDIN_SEARCH_SKU||'linkedin.search_posts_full',
     reddit:process.env.ANYAPI_REDDIT_SEARCH_SKU||'reddit.search',
     youtube:process.env.ANYAPI_YOUTUBE_SEARCH_SKU||'youtube.search',
     tiktok:process.env.ANYAPI_TIKTOK_SEARCH_SKU||'tiktok.hashtag_videos',
@@ -277,7 +277,7 @@ function sourceSku(platform){
 }
 function sourceRequest(platform,query,limit,maxAgeHours=168){
   if(platform==='x') return {query,limit,queryType:'Latest',requireSinglePage:false};
-  if(platform==='linkedin') return {query,datePosted:maxAgeHours<=1?'last-hour':maxAgeHours<=24?'last-day':'last-week'};
+  if(platform==='linkedin') return {query,datePosted:maxAgeHours<=24?'last-day':'last-week',sort:'date',limit:Math.min(limit,10)};
   if(platform==='reddit') return {query,sort:'new',timeframe:'week'};
   if(platform==='youtube') return {query,uploadDate:'this_week'};
   if(platform==='tiktok') return {hashtag:String(query).replace(/^#/,'').trim(),limit:Math.min(limit,20)};

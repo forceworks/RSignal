@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.13 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.14 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -25,7 +25,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Fresh feed with Best matches, Newest, and Momentum views.
 - Separate watchlists for each source.
 - X search with `queryType: "Latest"`, author filters, and repost exclusion.
-- LinkedIn search with a source-side date window aligned to the configured freshness period.
+- Direct LinkedIn search ordered by publication date, with rich author and engagement details.
 - Comment and reply records are excluded when the source identifies them; the feed keeps original posts.
 - Reddit keyword search and YouTube search for recent uploads.
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
@@ -41,7 +41,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 | Source | AnyAPI SKU | Request behavior | Watchlist entry |
 | --- | --- | --- | --- |
 | X | `twitter.search` | Latest results | One search topic per line |
-| LinkedIn | `linkedin.search_posts` | Posts from the last week | One keyword or phrase query per line |
+| LinkedIn | `linkedin.search_posts_full` | Latest posts from the last day, capped at 10 per query; last week for wider freshness windows | One keyword, phrase, or Boolean query per line |
 | Reddit | `reddit.search` | New posts from the last week | Search text or Reddit operators |
 | YouTube | `youtube.search` | Recent uploads from the current week | Search text or phrase |
 | TikTok | `tiktok.hashtag_videos` | Timestamped hashtag results | One hashtag per line |

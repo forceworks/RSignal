@@ -1,0 +1,47 @@
+{
+  "output": {
+    "found": true,
+    "data": {
+      "posts": [
+        {
+          "attachmentDescription": "[sanitized attachment description]",
+          "attachmentImage": "https://media.licdn.com/sanitized-image",
+          "attachmentSubtitle": "[sanitized attachment subtitle]",
+          "attachmentTitle": "[sanitized attachment title]",
+          "attachmentType": "image",
+          "attachmentUrl": "https://example.com/sanitized-attachment",
+          "author": {
+            "headline": "[sanitized LinkedIn headline]",
+            "id": "sanitized-author-id",
+            "image": "https://media.licdn.com/sanitized-author-image",
+            "name": "Sanitized LinkedIn author",
+            "profileUrl": "https://www.linkedin.com/in/sanitized-linkedin-author/",
+            "publicIdentifier": "sanitized-linkedin-author",
+            "type": "member"
+          },
+          "createdUtc": 1786441088,
+          "engagement": {
+            "breakdown": [
+              {
+                "count": 10,
+                "type": "LIKE"
+              }
+            ],
+            "comments": 3,
+            "reactions": 10,
+            "reposts": 2
+          },
+          "id": "sanitized-linkedin-post-id",
+          "pollOptions": [],
+          "text": "[sanitized rich LinkedIn post]",
+          "url": "https://www.linkedin.com/posts/sanitized-linkedin-author_sanitized-activity-7492853017986301953-fixture"
+        }
+      ]
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.0137,
+  "items": 1,
+  "replayed": false,
+  "resultId": "sanitized-result-id"
+}

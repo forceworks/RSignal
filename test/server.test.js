@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { extractLinkedInPosts, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
+const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
 const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.search.sanitized.json', import.meta.url), 'utf8'));
 const youtubeFixture = JSON.parse(await readFile(new URL('./fixtures/youtube.search.sanitized.json', import.meta.url), 'utf8'));
 const tiktokFixture = JSON.parse(await readFile(new URL('./fixtures/tiktok.hashtag_videos.sanitized.json', import.meta.url), 'utf8'));
@@ -47,6 +48,19 @@ test('normalizes X createdAt and keeps the Latest query compatible', () => {
   assert.equal(post.author.username, 'fixture_author');
 });
 
+test('parses rich LinkedIn search results with author and engagement details', () => {
+  const rawPosts = extractLinkedInPosts(linkedinFullFixture);
+  assert.equal(rawPosts.length, 1);
+
+  const post = normalizeLinkedInPost(rawPosts[0], 'Power Platform', 0);
+  assert.equal(post.createdAt, new Date(1786441088 * 1000).toISOString());
+  assert.equal(post.author.name, 'Sanitized LinkedIn author');
+  assert.equal(post.author.username, 'sanitized-linkedin-author');
+  assert.equal(post.replies, 3);
+  assert.equal(post.likes, 10);
+  assert.equal(post.reposts, 2);
+});
+
 test('identifies comments and replies without rejecting ordinary posts', () => {
   assert.equal(isCommentRecord({ referenced_tweets: [{ type: 'replied_to', id: '123' }] }, 'x'), true);
   assert.equal(isCommentRecord({ in_reply_to_status_id_str: '123' }, 'x'), true);
@@ -67,9 +81,10 @@ test('normalizes the timestamped expansion source fixtures', () => {
 });
 
 test('builds source-specific expansion requests without leaking X syntax', () => {
-  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 1), { query: 'AI agents', datePosted: 'last-hour' });
-  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 24), { query: 'AI agents', datePosted: 'last-day' });
-  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 168), { query: 'AI agents', datePosted: 'last-week' });
+  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 1), { query: 'AI agents', datePosted: 'last-day', sort: 'date', limit: 10 });
+  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 24), { query: 'AI agents', datePosted: 'last-day', sort: 'date', limit: 10 });
+  assert.deepEqual(sourceRequest('linkedin', 'AI agents', 12, 168), { query: 'AI agents', datePosted: 'last-week', sort: 'date', limit: 10 });
+  assert.equal(sourceRequest('linkedin', 'AI agents', 5, 24).limit, 5);
   assert.deepEqual(sourceRequest('reddit', 'AI agents', 12), { query: 'AI agents', sort: 'new', timeframe: 'week' });
   assert.deepEqual(sourceRequest('youtube', 'Microsoft Copilot', 12), { query: 'Microsoft Copilot', uploadDate: 'this_week' });
   assert.deepEqual(sourceRequest('tiktok', '#aiagents', 12), { hashtag: 'aiagents', limit: 12 });
