@@ -20,6 +20,19 @@ test('parses the real LinkedIn response shape and createdUtc Unix seconds', () =
   assert.equal(posts[0].text, '[sanitized LinkedIn post 1]');
 });
 
+test('parses rich LinkedIn search results with author and engagement details', () => {
+  const rawPosts = extractLinkedInPosts(linkedinFullFixture);
+  assert.equal(rawPosts.length, 1);
+
+  const post = normalizeLinkedInPost(rawPosts[0], 'Power Platform', 0);
+  assert.equal(post.createdAt, new Date(1786441088 * 1000).toISOString());
+  assert.equal(post.author.name, 'Sanitized LinkedIn author');
+  assert.equal(post.author.username, 'sanitized-linkedin-author');
+  assert.equal(post.replies, 3);
+  assert.equal(post.likes, 10);
+  assert.equal(post.reposts, 2);
+});
+
 test('parses publishedAt variants without treating Unix seconds as milliseconds', () => {
   const post = normalizeLinkedInPost({
     publishedAt: { value: 1785939242 },
@@ -46,19 +59,6 @@ test('normalizes X createdAt and keeps the Latest query compatible', () => {
   }, 'Power Platform', 0);
   assert.equal(post.createdAt, '2026-08-06T12:00:02.000Z');
   assert.equal(post.author.username, 'fixture_author');
-});
-
-test('parses rich LinkedIn search results with author and engagement details', () => {
-  const rawPosts = extractLinkedInPosts(linkedinFullFixture);
-  assert.equal(rawPosts.length, 1);
-
-  const post = normalizeLinkedInPost(rawPosts[0], 'Power Platform', 0);
-  assert.equal(post.createdAt, new Date(1786441088 * 1000).toISOString());
-  assert.equal(post.author.name, 'Sanitized LinkedIn author');
-  assert.equal(post.author.username, 'sanitized-linkedin-author');
-  assert.equal(post.replies, 3);
-  assert.equal(post.likes, 10);
-  assert.equal(post.reposts, 2);
 });
 
 test('identifies comments and replies without rejecting ordinary posts', () => {
