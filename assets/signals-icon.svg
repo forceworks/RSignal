@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="RSignals">
+  <circle cx="128" cy="128" r="120" fill="#111827"/>
+  <path
+    d="M60 76 C80 42 176 42 196 76"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+  <path
+    d="M64 132 H192"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+  <path
+    d="M60 180 C80 214 176 214 196 180"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+</svg>
