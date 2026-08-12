@@ -81,6 +81,7 @@
             <section class="settings-group">
               <div class="settings-group-head"><h3>Scanning</h3><p>Choose how much to fetch and how often automatic scans run.</p></div>
               <label class="setting-field"><span>Maximum results per query</span><input id="limit" type="number" min="1" max="50" value="12" /></label>
+              <label class="setting-field"><span>Minimum followers (X/LinkedIn)</span><input id="minFollowers" type="number" min="0" max="1000000000" step="1" value="0" /></label>
               <label class="setting-field"><span>Freshness window</span><span class="setting-input-with-suffix"><input id="maxAgeHours" type="number" min="0.25" max="168" step="0.25" value="3" /><small>hours</small></span></label>
               <label class="setting-field"><span>Automatic scan interval</span><span class="setting-input-with-suffix"><input id="scanInterval" type="number" min="5" max="240" step="5" value="15" /><small>minutes</small></span></label>
             </section>
@@ -89,6 +90,7 @@
               <div class="settings-group-head"><h3>Notifications</h3><p>Use Windows alerts to call attention to strong matches.</p></div>
               <label class="setting-field"><span>Minimum fit score</span><span class="setting-input-with-suffix"><input id="notifyScore" type="number" min="1" max="99" value="70" /><small>score</small></span></label>
               <label class="setting-toggle"><input id="notificationsEnabled" type="checkbox" checked /><span>Show Windows toast alerts</span></label>
+              <button id="testNotification" class="secondary test-notification" type="button">Send test notification</button>
             </section>
 
             <section class="settings-group settings-group-wide">

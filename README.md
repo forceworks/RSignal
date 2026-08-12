@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.18 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.20 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -28,6 +28,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - X search with `queryType: "Latest"`, author filters, and local repost exclusion.
 - Direct LinkedIn search ordered by publication date, with rich author and engagement details.
 - Follower counts for X and LinkedIn authors when available.
+- Optional minimum-follower filtering for X and LinkedIn opportunities and alerts.
 - Comment and reply records are excluded when the source identifies them; the feed keeps original posts.
 - Reddit keyword search and YouTube search for recent uploads.
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
@@ -35,7 +36,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Save and hide actions persisted across rescans and restarts.
 - Relative timestamps that refresh while the app is open.
 - Manual scanning and configurable background scanning.
-- Windows toast notifications and tray controls.
+- Self-registering Windows toast notifications for ZIP builds, a test notification control, and tray controls.
 - Demo mode when no AnyAPI key is configured.
 
 ## Supported sources

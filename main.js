@@ -1,10 +1,12 @@
 import { app, BrowserWindow, ipcMain, Menu, Notification, shell, Tray, nativeImage, dialog } from 'electron';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startSignalServer } from './server.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = 31877;
+const appUserModelId = 'com.signal.scanner';
+const toastActivatorClsid = '{86609B8D-0E0C-4A2B-9038-63F71A196E23}';
 let mainWindow;
 let tray;
 let embeddedServer;
@@ -23,6 +25,20 @@ function appIcon() {
 
 function trayIcon() {
   return nativeImage.createFromPath(assetPath('tray.png'));
+}
+
+function registerWindowsNotifications() {
+  if (process.platform !== 'win32' || !app.isPackaged) return true;
+  const shortcutPath = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'RSignals.lnk');
+  return shell.writeShortcutLink(shortcutPath, 'create', {
+    target: process.execPath,
+    cwd: dirname(process.execPath),
+    description: 'RSignals opportunity scanner',
+    icon: process.execPath,
+    iconIndex: 0,
+    appUserModelId,
+    toastActivatorClsid: app.toastActivatorCLSID
+  });
 }
 
 function showWindow() {
@@ -95,8 +111,14 @@ ipcMain.handle('notify', (_event, payload) => {
       showWindow();
       if (payload?.url) shell.openExternal(payload.url);
     });
-    notification.show();
-    return true;
+    return new Promise(resolve => {
+      let settled = false;
+      const finish = result => { if (!settled) { settled = true; resolve(result); } };
+      notification.once('show', () => finish(true));
+      notification.once('failed', () => { activeNotifications.delete(notification); finish(false); });
+      notification.show();
+      setTimeout(() => finish(false), 5000);
+    });
   } catch {
     return false;
   }
@@ -113,10 +135,12 @@ ipcMain.handle('set-startup', (_event, enabled) => {
 });
 ipcMain.handle('get-startup', () => app.getLoginItemSettings().openAtLogin);
 
-app.setAppUserModelId('com.signal.scanner');
+app.setAppUserModelId(appUserModelId);
+if (process.platform === 'win32' && typeof app.setToastActivatorCLSID === 'function') app.setToastActivatorCLSID(toastActivatorClsid);
 app.whenReady().then(async () => {
   process.env.SIGNAL_DATA_DIR = app.getPath('userData');
   try {
+    registerWindowsNotifications();
     embeddedServer = await startSignalServer({ port });
     createWindow();
     createTray();

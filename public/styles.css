@@ -59,6 +59,7 @@ header p{color:rgba(255,255,255,.82);font-size:14px;font-weight:300;line-height:
   .setting-input-with-suffix small{width:48px;color:var(--muted);font-size:12px}
   .setting-toggle{display:flex;align-items:center;gap:9px;color:var(--ink);font-size:14px}
   .setting-toggle input[type=checkbox]{flex:none;margin:0}
+  .test-notification{margin-top:16px}
   .settings-group .quiet-hours{margin-top:18px;padding-top:16px;border-top:1px solid #f0f1f3}
   .settings-group .quiet-hours label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
   .settings-group .quiet-days{margin-top:14px;padding:12px;background:#f8f9fa;border:1px solid #f0f1f3;border-radius:6px;gap:12px}
