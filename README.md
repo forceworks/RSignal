@@ -20,6 +20,14 @@ Created and maintained by Steve Mordue.
 
 This is the public RSignal snapshot. Active development, experiments, and unreleased work remain in the private `RSignalDev` repository.
 
+## Screenshots
+
+| Opportunities | Saved |
+| --- | --- |
+| ![RSignals opportunities feed](assets/opportunities_screen.png) | ![RSignals saved opportunities](assets/saved_screen.png) |
+| Watchlists | Settings |
+| ![RSignals source watchlists](assets/watchlist_screen.png) | ![RSignals scanning and notification settings](assets/settings_screen.png) |
+
 ## Features
 
 - Fresh feed with Best matches, Newest, and Momentum views.

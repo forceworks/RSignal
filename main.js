@@ -125,7 +125,7 @@ ipcMain.handle('notify', (_event, payload) => {
 });
 
 ipcMain.handle('open-external', (_event, url) =>
-  typeof url === 'string' && /^https:\/\/(?:www\.)?(?:x|twitter|linkedin|reddit|youtube|tiktok|substack)\.com\//i.test(url)
+  typeof url === 'string' && /^https:\/\/(?:www\.)?(?:(?:x|twitter|linkedin|reddit|youtube|tiktok|substack)\.com|getanyapi\.com)\//i.test(url)
     ? shell.openExternal(url)
     : false
 );
