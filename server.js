@@ -105,7 +105,7 @@ function deepFindXHandle(value,seen=new Set()){
 
 function sourceQuery(platform, topic) {
   const clean = String(topic || '')
-    .replace(/(^|\s)-is:repost\b/gi, ' ')
+    .replace(/(^|\s)-is:(?:repost|retweet)\b/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (platform !== 'x') {
@@ -119,6 +119,22 @@ function sourceQuery(platform, topic) {
   // Keep the first X pass deliberately small: phrases, terms, and OR are supported
   // by the observed provider response. Do not assume the full native X grammar.
   return clean.replace(/[()]/g, ' ').replace(/\bAND\b/gi, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function isRepostRecord(raw, platform) {
+  if (platform !== 'x' || !raw || typeof raw !== 'object') return false;
+  const candidates = [raw, raw.post, raw.tweet, raw.activity].filter(value => value && typeof value === 'object');
+  const valueFor = keys => firstValue(...candidates.flatMap(candidate => keys.map(key => candidate[key])));
+  const type = String(valueFor(['type', 'postType', 'post_type', 'contentType', 'content_type']) || '').toLowerCase();
+  if (['retweet', 'retweeted', 'repost', 'reposted'].includes(type)) return true;
+  const flag = valueFor(['isRetweet', 'is_retweet', 'retweeted', 'isRepost', 'is_repost', 'reposted']);
+  if (flag === true || String(flag).toLowerCase() === 'true') return true;
+  const references = candidates.flatMap(candidate => {
+    const value = firstValue(candidate.referenced_tweets, candidate.referencedTweets);
+    return Array.isArray(value) ? value : value && typeof value === 'object' ? [value] : [];
+  });
+  if (references.some(reference => ['retweeted', 'retweet', 'reposted', 'repost'].includes(String(reference?.type || '').toLowerCase()))) return true;
+  return /^RT\s+@[A-Za-z0-9_]{1,15}(?::|\s)/i.test(String(valueFor(['text', 'fullText', 'full_text', 'content', 'body']) || '').trim());
 }
 
 function isCommentRecord(raw, platform) {
@@ -463,12 +479,15 @@ async function runSearch(platform, topic, limit, maxAgeHours){
   await saveAnyApiResponse(platform, payload);
   const normalizer=sourceNormalizer(platform);
   const sourceItems=extractSourceItems(platform,payload);
-  const commentFiltered=sourceItems.filter(item=>isCommentRecord(item,platform)).length;
-  const normalizedPosts=sourceItems.filter(item=>!isCommentRecord(item,platform)).map((item,i)=>normalizer(item,topic,i));
+  const nonComments=sourceItems.filter(item=>!isCommentRecord(item,platform));
+  const commentFiltered=sourceItems.length-nonComments.length;
+  const nonReposts=nonComments.filter(item=>!isRepostRecord(item,platform));
+  const repostFiltered=nonComments.length-nonReposts.length;
+  const normalizedPosts=nonReposts.map((item,i)=>normalizer(item,topic,i));
   const posts=normalizedPosts;
   const range=dateRange(posts);
   const firstRaw=sourceItems[0]&&typeof sourceItems[0]==='object'?Object.keys(sourceItems[0]).slice(0,30):[];
-  const debug={platform,query:topic,sourceQuery:query,sku,requestBody,httpStatus:status,durationMs,provider:payload.provider||'AnyAPI',costUsd:Number(payload.costUsd||0),reportedItems:Number(payload.items||0),returned:posts.length,commentFiltered,rawFirstItemKeys:firstRaw,...range};
+  const debug={platform,query:topic,sourceQuery:query,sku,requestBody,httpStatus:status,durationMs,provider:payload.provider||'AnyAPI',costUsd:Number(payload.costUsd||0),reportedItems:Number(payload.items||0),returned:posts.length,commentFiltered,repostFiltered,rawFirstItemKeys:firstRaw,...range};
   await logDiagnostic('search.normalized',debug);
   return {demo:false,posts,costUsd:Number(payload.costUsd||0),provider:payload.provider||'AnyAPI',items:Number(payload.items||0),platform,debug};
 }
@@ -531,5 +550,5 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
 }catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); }
 export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
-export { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
+export { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }

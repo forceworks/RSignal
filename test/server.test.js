@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
+import { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
@@ -50,7 +50,7 @@ test('parses publishedAt variants without treating Unix seconds as milliseconds'
 test('keeps source topics separate from platform query syntax', () => {
   const topic = '"AI agents" AND (enterprise OR SaaS) -is:repost -is:retweet';
   assert.equal(sourceQuery('linkedin', topic), '"AI agents" AND (enterprise OR SaaS)');
-  assert.equal(sourceQuery('x', topic), '"AI agents" enterprise OR SaaS -is:retweet');
+  assert.equal(sourceQuery('x', topic), '"AI agents" enterprise OR SaaS');
 });
 
 test('normalizes X createdAt and keeps the Latest query compatible', () => {
@@ -96,6 +96,14 @@ test('identifies comments and replies without rejecting ordinary posts', () => {
   assert.equal(isCommentRecord({ in_reply_to_status_id_str: '123' }, 'x'), true);
   assert.equal(isCommentRecord({ urn: 'urn:li:comment:(activity,comment)' }, 'linkedin'), true);
   assert.equal(isCommentRecord({ url: 'https://www.linkedin.com/posts/fixture-activity-123' }, 'linkedin'), false);
+});
+
+test('identifies X reposts locally without sending exclusion operators', () => {
+  assert.equal(isRepostRecord({ isRetweet: true, text: 'fixture' }, 'x'), true);
+  assert.equal(isRepostRecord({ referenced_tweets: [{ type: 'retweeted', id: '123' }] }, 'x'), true);
+  assert.equal(isRepostRecord({ text: 'RT @fixture_author: fixture' }, 'x'), true);
+  assert.equal(isRepostRecord({ retweetCount: 12, text: 'ordinary original post' }, 'x'), false);
+  assert.equal(isRepostRecord({ isRepost: true, text: 'fixture' }, 'linkedin'), false);
 });
 
 test('normalizes the timestamped expansion source fixtures', () => {

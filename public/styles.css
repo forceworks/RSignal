@@ -38,6 +38,7 @@ header p{color:rgba(255,255,255,.82);font-size:14px;font-weight:300;line-height:
 .card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
 .score strong{font-family:inherit;color:var(--ink)}
 .post-text{font-family:inherit;font-size:18px;line-height:1.5}
+.search-hit{background:#fff0b8;color:inherit;border-radius:3px;padding:0 .08em;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .query-chip{background:#fff5f7;color:#d83b6b}
 .opportunity{border-left-color:var(--accent);color:var(--muted)}
 .primary{background:var(--brand-grad);border-radius:6px;box-shadow:none}

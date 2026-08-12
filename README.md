@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.17 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.18 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -23,8 +23,9 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 ## Features
 
 - Fresh feed with Best matches, Newest, and Momentum views.
+- Search terms are highlighted in result text for faster scanning.
 - Separate watchlists for each source.
-- X search with `queryType: "Latest"`, author filters, and repost exclusion.
+- X search with `queryType: "Latest"`, author filters, and local repost exclusion.
 - Direct LinkedIn search ordered by publication date, with rich author and engagement details.
 - Follower counts for X and LinkedIn authors when available.
 - Comment and reply records are excluded when the source identifies them; the feed keeps original posts.
@@ -53,11 +54,11 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 X supports filters such as:
 
 ```text
-"workflow automation" OR "business software" -is:retweet
+"workflow automation" OR "business software"
 from:example_account "enterprise AI"
 ```
 
-Use the username without `@` in `from:`. X-specific operators are removed before queries are sent to other sources.
+Use the username without `@` in `from:`. RSignals filters identifiable reposts after retrieval, so you do not need `-is:retweet`. X-specific operators are removed before queries are sent to other sources.
 
 LinkedIn works best with plain keywords and quoted phrases:
 
