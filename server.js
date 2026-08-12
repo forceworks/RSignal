@@ -39,6 +39,10 @@ function safeErrorMessage(error) {
   return redactString(error?.message || String(error));
 }
 
+function diagnosticRequestBody(body,redact=false) {
+  return redact&&body&&typeof body==='object'?Object.fromEntries(Object.keys(body).map(field=>[field,'[redacted]'])):body;
+}
+
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml' };
 function sendJson(res,status,body){ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(body)); }
 function collect(req){ return new Promise((resolve,reject)=>{ let data=''; req.on('data',c=>{ data+=c; if(data.length>1_000_000) reject(new Error('Request too large')); }); req.on('end',()=>resolve(data)); req.on('error',reject); }); }
@@ -195,6 +199,17 @@ function metricValue(value) {
   return Number.isFinite(number) && number >= 0 ? number : 0;
 }
 
+function optionalMetricValue(...values) {
+  const value = firstValue(...values);
+  if (value === undefined) return null;
+  const text = String(value).trim().replace(/,/g, '');
+  const compact = text.match(/^(\d+(?:\.\d+)?)\s*([kmb])?$/i);
+  if (!compact) return null;
+  const multiplier = { k:1_000, m:1_000_000, b:1_000_000_000 }[String(compact[2] || '').toLowerCase()] || 1;
+  const number = Number(compact[1]) * multiplier;
+  return Number.isFinite(number) && number >= 0 ? Math.round(number) : null;
+}
+
 function normalizeXPost(raw,query,index){
   const legacyUser=raw?.core?.user_results?.result?.legacy||raw?.user_results?.result?.legacy||{};
   const tweet=raw?.tweet||raw?.post||raw;
@@ -211,7 +226,8 @@ function normalizeXPost(raw,query,index){
   const url=suppliedUrl||(cleanUsername!=='unknown'?`https://x.com/${cleanUsername}/status/${id}`:`https://x.com/i/web/status/${id}`);
   const created=firstValue(tweet?.createdAt,tweet?.created_at,tweet?.createdUtc,tweet?.createdUTC,tweet?.date,tweet?.timestamp,tweet?.publishedAt,tweet?.published_at,tweet?.legacy?.created_at,raw?.createdAt,raw?.created_at,raw?.createdUtc,raw?.createdUTC,raw?.date,raw?.timestamp,raw?.publishedAt,raw?.published_at,deepFindByKeys(raw,new Set(['createdat','created_at','createdutc','created_utc','timestamp','publishedat','published_at','tweetcreatedat','tweet_created_at'])));
   const metrics=tweet?.metrics||tweet?.public_metrics||raw?.metrics||raw?.public_metrics||{}; const legacy=tweet?.legacy||raw?.legacy||{};
-  return { platform:'x', id, query, author:{name:String(name),username:cleanUsername,verified:Boolean(firstValue(tweet?.verified,authorObject?.verified,authorObject?.isVerified,legacyUser?.verified,raw?.verified,false))}, text:String(text), url:String(url), createdAt:parsePostDate(created)||dateFromXPostId(id), replies:metricValue(firstValue(tweet?.replies,tweet?.replyCount,tweet?.reply_count,metrics.reply_count,legacy.reply_count,raw?.replies,raw?.replyCount,0)), likes:metricValue(firstValue(tweet?.likes,tweet?.likeCount,tweet?.like_count,metrics.like_count,legacy.favorite_count,raw?.likes,raw?.likeCount,0)), reposts:metricValue(firstValue(tweet?.reposts,tweet?.retweets,tweet?.retweetCount,tweet?.retweet_count,metrics.retweet_count,legacy.retweet_count,raw?.reposts,raw?.retweets,0)), views:metricValue(firstValue(tweet?.views,tweet?.viewCount,tweet?.view_count,metrics.impression_count,raw?.views,raw?.viewCount,0)) };
+  const followers=optionalMetricValue(tweet?.followers,tweet?.followerCount,tweet?.followersCount,tweet?.followers_count,authorObject?.followers,authorObject?.followerCount,authorObject?.followersCount,authorObject?.followers_count,legacyUser?.followers_count,raw?.followers,raw?.followerCount,raw?.followersCount,raw?.followers_count);
+  return { platform:'x', id, query, author:{name:String(name),username:cleanUsername,profileUrl:cleanUsername!=='unknown'?`https://x.com/${cleanUsername}`:'',verified:Boolean(firstValue(tweet?.verified,authorObject?.verified,authorObject?.isVerified,legacyUser?.verified,raw?.verified,false)),followers}, text:String(text), url:String(url), createdAt:parsePostDate(created)||dateFromXPostId(id), replies:metricValue(firstValue(tweet?.replies,tweet?.replyCount,tweet?.reply_count,metrics.reply_count,legacy.reply_count,raw?.replies,raw?.replyCount,0)), likes:metricValue(firstValue(tweet?.likes,tweet?.likeCount,tweet?.like_count,metrics.like_count,legacy.favorite_count,raw?.likes,raw?.likeCount,0)), reposts:metricValue(firstValue(tweet?.reposts,tweet?.retweets,tweet?.retweetCount,tweet?.retweet_count,metrics.retweet_count,legacy.retweet_count,raw?.reposts,raw?.retweets,0)), views:metricValue(firstValue(tweet?.views,tweet?.viewCount,tweet?.view_count,metrics.impression_count,raw?.views,raw?.viewCount,0)) };
 }
 
 function normalizeLinkedInPost(raw,query,index){
@@ -223,12 +239,14 @@ function normalizeLinkedInPost(raw,query,index){
   const urn=String(firstValue(post?.urn,post?.activityUrn,post?.activity_urn,raw?.urn,raw?.activityUrn,raw?.activity_urn,''));
   const suppliedId=firstValue(post?.activityId,post?.activity_id,post?.postId,post?.post_id,post?.id,raw?.activityId,raw?.activity_id,raw?.postId,raw?.post_id,raw?.id,urn.match(/activity:(\d+)/)?.[1]);
   const id=String(suppliedId || `content-${stableHash(`${username || ''}|${text || ''}`)}-${index}`);
+  const profileUrl=String(firstValue(author?.profileUrl,author?.profile_url,author?.url,post?.authorProfileUrl,post?.author_profile_url,raw?.authorProfileUrl,raw?.author_profile_url,''));
   const suppliedUrl=firstValue(post?.url,post?.postUrl,post?.post_url,post?.linkedinUrl,post?.linkedin_url,post?.link,raw?.url,raw?.postUrl,raw?.post_url,raw?.linkedinUrl,raw?.linkedin_url,raw?.link,deepFindUrl(raw,/linkedin\.com\//i));
   if(username==='unknown'&&suppliedUrl){ const m=String(suppliedUrl).match(/linkedin\.com\/in\/([^/?#]+)/i); if(m?.[1]) username=m[1]; }
   const url=suppliedUrl||(id.match(/^\d+$/)?`https://www.linkedin.com/feed/update/urn:li:activity:${id}/`:'https://www.linkedin.com/feed/');
   const created=firstValue(post?.publishedAt,post?.published_at,post?.publishedTime,post?.published_time,post?.createdUtc,post?.createdUTC,post?.createdAt,post?.created_at,post?.postedAt,post?.posted_at,post?.date,post?.timestamp,post?.time,raw?.publishedAt,raw?.published_at,raw?.publishedTime,raw?.published_time,raw?.createdUtc,raw?.createdUTC,raw?.createdAt,raw?.created_at,raw?.postedAt,raw?.posted_at,raw?.date,raw?.timestamp,deepFindByKeys(raw,new Set(['publishedat','published_at','publishedtime','published_time','createdutc','created_utc','createdat','created_at','postedat','posted_at','timestamp'])));
   const metrics=post?.metrics||post?.engagement||raw?.metrics||raw?.engagement||{};
-  return { platform:'linkedin', id, query, author:{name:String(name),username,verified:Boolean(firstValue(author?.verified,author?.isVerified,raw?.verified,false))}, text:String(text), url:String(url), createdAt:parsePostDate(created), replies:metricValue(firstValue(post?.comments,post?.commentCount,post?.comment_count,post?.replies,metrics.comments,metrics.commentCount,raw?.comments,raw?.commentCount,0)), likes:metricValue(firstValue(post?.likes,post?.likeCount,post?.like_count,post?.reactions,post?.reactionCount,post?.reaction_count,metrics.likes,metrics.reactions,raw?.likes,raw?.reactions,0)), reposts:metricValue(firstValue(post?.reposts,post?.repostCount,post?.repost_count,post?.shares,post?.shareCount,metrics.reposts,metrics.shares,raw?.reposts,raw?.shares,0)), views:metricValue(firstValue(post?.views,post?.viewCount,post?.impressions,post?.impressionCount,metrics.views,metrics.impressions,raw?.views,raw?.impressions,0)) };
+  const followers=optionalMetricValue(author?.followers,author?.followerCount,author?.followersCount,author?.follower_count,post?.followers,post?.followerCount,raw?.followers,raw?.followerCount);
+  return { platform:'linkedin', id, query, author:{name:String(name),username,profileUrl:profileUrl||(username!=='unknown'?`https://www.linkedin.com/in/${username}`:''),verified:Boolean(firstValue(author?.verified,author?.isVerified,raw?.verified,false)),followers}, text:String(text), url:String(url), createdAt:parsePostDate(created), replies:metricValue(firstValue(post?.comments,post?.commentCount,post?.comment_count,post?.replies,metrics.comments,metrics.commentCount,raw?.comments,raw?.commentCount,0)), likes:metricValue(firstValue(post?.likes,post?.likeCount,post?.like_count,post?.reactions,post?.reactionCount,post?.reaction_count,metrics.likes,metrics.reactions,raw?.likes,raw?.reactions,0)), reposts:metricValue(firstValue(post?.reposts,post?.repostCount,post?.repost_count,post?.shares,post?.shareCount,metrics.reposts,metrics.shares,raw?.reposts,raw?.shares,0)), views:metricValue(firstValue(post?.views,post?.viewCount,post?.impressions,post?.impressionCount,metrics.views,metrics.impressions,raw?.views,raw?.impressions,0)) };
 }
 
 function normalizeRedditPost(raw,query,index){
@@ -319,6 +337,66 @@ function postKey(post){
 async function readSeenPosts(){ try{ const p=JSON.parse(await readFile(join(getDataDir(),'seen-posts.json'),'utf8')); return p&&typeof p==='object'?p:{}; }catch{return{};} }
 async function writeSeenPosts(seen){ const cutoff=Date.now()-90*24*60*60*1000; const trimmed=Object.fromEntries(Object.entries(seen).filter(([,when])=>Number.isFinite(Number(when))&&Number(when)>=cutoff)); const target=join(getDataDir(),'seen-posts.json'); const temporary=`${target}.tmp`; await writeFile(temporary,JSON.stringify(trimmed,null,2),'utf8'); await rename(temporary,target); }
 
+const followerCacheMaxAgeMs=24*60*60*1000;
+function canonicalLinkedInProfileUrl(value){
+  try{
+    const parsed=new URL(String(value));
+    const hostname=parsed.hostname.toLowerCase().replace(/^www\./,'');
+    if(hostname!=='linkedin.com'||!/^\/in\/[^/?#]+\/?$/i.test(parsed.pathname)) return '';
+    return `https://www.linkedin.com${parsed.pathname.replace(/\/+$/,'')}`;
+  }catch{return '';}
+}
+function followerLookupRequest(author){
+  const platform=String(author?.platform||'').toLowerCase();
+  const username=String(author?.username||'').replace(/^@/,'').trim();
+  if(platform==='x'&&username.toLowerCase()!=='unknown'&&/^[A-Za-z0-9_]{1,15}$/.test(username)) return {platform,username,profileUrl:`https://x.com/${username}`,cacheKey:`x:${username.toLowerCase()}`,sku:'twitter.profile',body:{handle:username}};
+  if(platform==='linkedin'){
+    const fallback=username.toLowerCase()!=='unknown'&&/^[A-Za-z0-9_-]{2,100}$/.test(username)?`https://www.linkedin.com/in/${username}`:'';
+    const profileUrl=canonicalLinkedInProfileUrl(author?.profileUrl)||canonicalLinkedInProfileUrl(fallback);
+    if(profileUrl) return {platform,username,profileUrl,cacheKey:`linkedin:${profileUrl.toLowerCase()}`,sku:'linkedin.profile',body:{url:profileUrl}};
+  }
+  return null;
+}
+function extractFollowerCount(payload,platform){
+  const data=firstValue(payload?.output?.data,payload?.data,payload?.output,{});
+  return platform==='linkedin'
+    ? optionalMetricValue(data?.followerCount,data?.followersCount,data?.followers,data?.follower_count)
+    : optionalMetricValue(data?.followers,data?.followerCount,data?.followersCount,data?.followers_count);
+}
+async function readFollowerCache(){ try{ const value=JSON.parse(await readFile(join(getDataDir(),'follower-cache.json'),'utf8')); return value&&typeof value==='object'?value:{}; }catch{return{};} }
+async function writeFollowerCache(cache){
+  const cutoff=Date.now()-30*24*60*60*1000;
+  const trimmed=Object.fromEntries(Object.entries(cache).filter(([,entry])=>Number(entry?.fetchedAt)>=cutoff));
+  const target=join(getDataDir(),'follower-cache.json'); const temporary=`${target}.tmp`;
+  await writeFile(temporary,JSON.stringify(trimmed,null,2),'utf8'); await rename(temporary,target);
+}
+async function enrichFollowerProfiles(authors,key){
+  const now=Date.now(),cache=await readFollowerCache(),profiles=[],pending=[],seen=new Set();
+  for(const author of authors){
+    const lookup=followerLookupRequest(author);
+    if(!lookup||seen.has(lookup.cacheKey)) continue;
+    seen.add(lookup.cacheKey);
+    const embedded=optionalMetricValue(author?.followers);
+    if(embedded!==null){ cache[lookup.cacheKey]={followers:embedded,fetchedAt:now}; profiles.push({...lookup,followers:embedded,cached:true}); continue; }
+    const cached=cache[lookup.cacheKey];
+    if(cached&&now-Number(cached.fetchedAt)<followerCacheMaxAgeMs){ const followers=optionalMetricValue(cached.followers); if(followers!==null) profiles.push({...lookup,followers,cached:true}); continue; }
+    pending.push(lookup);
+  }
+  let cursor=0,costUsd=0,failures=0;
+  const worker=async()=>{ while(cursor<pending.length){
+    const lookup=pending[cursor++];
+    try{
+      const {payload}=await callAnyApi(lookup.sku,key,[lookup.body],{platform:lookup.platform,operation:'follower_lookup',redactBody:true});
+      const followers=extractFollowerCount(payload,lookup.platform);
+      cache[lookup.cacheKey]={followers,fetchedAt:Date.now()}; costUsd+=Number(payload.costUsd||0);
+      if(followers!==null) profiles.push({...lookup,followers,cached:false});
+    }catch(error){ failures++; await logDiagnostic('followers.failed',{platform:lookup.platform,message:safeErrorMessage(error)}); }
+  }};
+  await Promise.all(Array.from({length:Math.min(4,pending.length)},worker));
+  if(pending.length||profiles.some(profile=>profile.cached&&cache[profile.cacheKey]?.fetchedAt===now)) try{await writeFollowerCache(cache);}catch{}
+  return {profiles:profiles.map(({body,sku,cacheKey,...profile})=>profile),costUsd,lookups:pending.length,failures};
+}
+
 async function logDiagnostic(event, data={}) {
   try {
     const safe = sanitize(data);
@@ -337,23 +415,26 @@ async function callAnyApi(sku,key,bodies,context={}){
   for(const body of bodies){
     attempt++;
     const started=Date.now();
-    await logDiagnostic('anyapi.request',{...context,sku,attempt,body});
+    const {redactBody=false,...logContext}=context;
+    const diagnosticBody=diagnosticRequestBody(body,redactBody);
+    await logDiagnostic('anyapi.request',{...logContext,sku,attempt,body:diagnosticBody});
     let response;
     try {
       response=await fetch(`https://api.getanyapi.com/v1/run/${encodeURIComponent(sku)}`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
     } catch (error) {
-      await logDiagnostic('anyapi.network_error',{...context,sku,attempt,message:safeErrorMessage(error)});
+      await logDiagnostic('anyapi.network_error',{...logContext,sku,attempt,message:safeErrorMessage(error)});
       throw error;
     }
     const text=await response.text();
     let payload={}; try{payload=text?JSON.parse(text):{};}catch{payload={raw:text.slice(0,2000)};}
     lastPayload=payload; lastStatus=response.status;
-    await logDiagnostic('anyapi.response',{...context,sku,attempt,status:response.status,ok:response.ok,durationMs:Date.now()-started,costUsd:Number(payload.costUsd||0),items:Number(payload.items||0),topLevelKeys:Object.keys(payload||{}),outputKeys:payload?.output&&typeof payload.output==='object'?Object.keys(payload.output):[]});
+    await logDiagnostic('anyapi.response',{...logContext,sku,attempt,status:response.status,ok:response.ok,durationMs:Date.now()-started,costUsd:Number(payload.costUsd||0),items:Number(payload.items||0),topLevelKeys:Object.keys(payload||{}),outputKeys:payload?.output&&typeof payload.output==='object'?Object.keys(payload.output):[]});
     if(response.ok) return {payload,response,status:response.status,requestBody:body,durationMs:Date.now()-started};
     if(![400,404,422].includes(response.status)) break;
   }
   const message=safeErrorMessage({message:lastPayload.error||lastPayload.message||`AnyAPI ${sku} request failed (${lastStatus})`});
-  await logDiagnostic('anyapi.failed',{...context,sku,status:lastStatus,message});
+  const {redactBody:_,...logContext}=context;
+  await logDiagnostic('anyapi.failed',{...logContext,sku,status:lastStatus,message});
   const error=new Error(message); error.status=lastStatus; error.payload=lastPayload; throw error;
 }
 
@@ -395,7 +476,7 @@ async function runSearch(platform, topic, limit, maxAgeHours){
 function demoPosts(platform,query,limit=12){
   const now=Date.now();
   const templates=[['Maya Chen','mayac_builds','The hidden cost of workflow automation is not the first two months. It is the next five years of ownership.',8,34,6,4100],['Jordan Hale','jhalesoftware','Enterprise software teams: are customers asking for more assistants, or are they asking for fewer screens and less work?',5,28,4,2600],['Priya Raman','priyaram_ai','AI systems are exposing a strange truth: most enterprise workflows exist because the software never understood the work.',12,47,9,6300],['Daniel Frost','dfrostcloud','Model routing looks boring until you realize it may become the economic control plane for every enterprise workflow.',3,19,5,1700]];
-  return templates.slice(0,limit).map((t,i)=>{const id=`demo-${platform}-${i}`;const urls={x:`https://x.com/${t[1]}/status/${id}`,linkedin:`https://www.linkedin.com/feed/update/urn:li:activity:700000000000000000${i}/`,reddit:`https://www.reddit.com/r/technology/comments/${id}/`,youtube:`https://www.youtube.com/watch?v=${id}`,tiktok:`https://www.tiktok.com/@${t[1]}/video/${id}`,substack:`https://signal-demo.substack.com/p/${id}`};return {platform,id,query,author:{name:t[0],username:t[1],verified:i%3===0},text:t[2],url:urls[platform]||urls.x,createdAt:new Date(now-[11,19,27,43][i]*60000).toISOString(),replies:t[3],likes:t[4],reposts:t[5],views:t[6]};});
+  return templates.slice(0,limit).map((t,i)=>{const id=`demo-${platform}-${i}`;const urls={x:`https://x.com/${t[1]}/status/${id}`,linkedin:`https://www.linkedin.com/feed/update/urn:li:activity:700000000000000000${i}/`,reddit:`https://www.reddit.com/r/technology/comments/${id}/`,youtube:`https://www.youtube.com/watch?v=${id}`,tiktok:`https://www.tiktok.com/@${t[1]}/video/${id}`,substack:`https://signal-demo.substack.com/p/${id}`};return {platform,id,query,author:{name:t[0],username:t[1],verified:i%3===0,followers:[18400,7200,31500,4900][i]},text:t[2],url:urls[platform]||urls.x,createdAt:new Date(now-[11,19,27,43][i]*60000).toISOString(),replies:t[3],likes:t[4],reposts:t[5],views:t[6]};});
 }
 
 export function createSignalServer(){ return http.createServer(async(req,res)=>{ try{
@@ -435,6 +516,14 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
     await logDiagnostic('scan.complete',{maxAgeHours,totalFetched:all.length,new:posts.length,duplicates,alreadySeen,tooOld,missingDate,failures,diagnostics});
     return sendJson(res,200,responseBody);
   }
+  if(req.method==='POST'&&url.pathname==='/api/followers'){
+    const body=JSON.parse((await collect(req))||'{}');
+    const authors=Array.isArray(body.authors)?body.authors.slice(0,100).filter(author=>author&&['x','linkedin'].includes(String(author.platform).toLowerCase())):[];
+    if(!authors.length) return sendJson(res,200,{profiles:[],costUsd:0,lookups:0,failures:0});
+    const key=await getAnyApiKey();
+    if(!key) return sendJson(res,200,{profiles:[],costUsd:0,lookups:0,failures:0});
+    return sendJson(res,200,await enrichFollowerProfiles(authors,key));
+  }
   if(req.method==='POST'&&url.pathname==='/api/key'){ const body=JSON.parse((await collect(req))||'{}'); const key=String(body.key||'').trim().replace(/^Bearer\s+/i,''); if(!key) return sendJson(res,400,{error:'Enter an AnyAPI key.'}); await writeFile(join(getDataDir(),'anyapi-key.txt'),key+'\n','utf8'); return sendJson(res,200,{configured:true}); }
   if(req.method==='DELETE'&&url.pathname==='/api/key'){ await writeFile(join(getDataDir(),'anyapi-key.txt'),'','utf8'); return sendJson(res,200,{configured:false}); }
   if(req.method==='GET'&&url.pathname==='/api/status'){ return sendJson(res,200,{configured:Boolean(await getAnyApiKey()),version:appVersion,skus:Object.fromEntries(['x','linkedin','reddit','youtube','tiktok','substack'].map(platform=>[platform,sourceSku(platform)]))}); }
@@ -442,5 +531,5 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
 }catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); }
 export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
-export { extractLinkedInPosts, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
+export { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }

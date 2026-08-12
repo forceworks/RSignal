@@ -1,0 +1,35 @@
+{
+  "output": {
+    "found": true,
+    "data": {
+      "about": "[sanitized LinkedIn about text]",
+      "certifications": [],
+      "connectionsCount": 500,
+      "currentPosition": [],
+      "education": [],
+      "experience": [],
+      "firstName": "Sanitized",
+      "followerCount": 123456,
+      "headline": "[sanitized LinkedIn headline]",
+      "honorsAndAwards": [],
+      "languages": [],
+      "lastName": "Author",
+      "location": "[sanitized location]",
+      "openToWork": false,
+      "photo": "https://example.com/sanitized-linkedin-avatar",
+      "premium": false,
+      "projects": [],
+      "publicIdentifier": "sanitized-linkedin-author",
+      "publications": [],
+      "skills": [],
+      "topSkills": [],
+      "url": "https://www.linkedin.com/in/sanitized-linkedin-author",
+      "verified": true
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.0042,
+  "items": 1,
+  "replayed": false,
+  "resultId": "sanitized-linkedin-profile-result-id"
+}

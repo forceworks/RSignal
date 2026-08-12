@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.14 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.16 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -26,6 +26,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Separate watchlists for each source.
 - X search with `queryType: "Latest"`, author filters, and repost exclusion.
 - Direct LinkedIn search ordered by publication date, with rich author and engagement details.
+- Follower counts for X and LinkedIn authors when available.
 - Comment and reply records are excluded when the source identifies them; the feed keeps original posts.
 - Reddit keyword search and YouTube search for recent uploads.
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
@@ -108,6 +109,8 @@ Release builds use Azure Artifact Signing with the existing Forceworks Public Tr
 ## AnyAPI configuration
 
 Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/). Paste it into Watchlists and select Save key. The key is stored locally in the Electron user-data directory and is never sent to the social platforms directly.
+
+Follower counts load after scan results appear. RSignals deduplicates authors and caches profile counts locally for 24 hours to limit paid `twitter.profile` and `linkedin.profile` calls. Counts are omitted when a profile cannot be resolved.
 
 Optional SKU overrides are available for development:
 

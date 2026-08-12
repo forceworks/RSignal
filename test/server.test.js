@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { extractLinkedInPosts, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
+import { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
+const twitterProfileFixture = JSON.parse(await readFile(new URL('./fixtures/twitter.profile.sanitized.json', import.meta.url), 'utf8'));
+const linkedinProfileFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.profile.sanitized.json', import.meta.url), 'utf8'));
 const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.search.sanitized.json', import.meta.url), 'utf8'));
 const youtubeFixture = JSON.parse(await readFile(new URL('./fixtures/youtube.search.sanitized.json', import.meta.url), 'utf8'));
 const tiktokFixture = JSON.parse(await readFile(new URL('./fixtures/tiktok.hashtag_videos.sanitized.json', import.meta.url), 'utf8'));
@@ -28,6 +30,8 @@ test('parses rich LinkedIn search results with author and engagement details', (
   assert.equal(post.createdAt, new Date(1786441088 * 1000).toISOString());
   assert.equal(post.author.name, 'Sanitized LinkedIn author');
   assert.equal(post.author.username, 'sanitized-linkedin-author');
+  assert.equal(post.author.profileUrl, 'https://www.linkedin.com/in/sanitized-linkedin-author/');
+  assert.equal(post.author.followers, null);
   assert.equal(post.replies, 3);
   assert.equal(post.likes, 10);
   assert.equal(post.reposts, 2);
@@ -53,12 +57,38 @@ test('normalizes X createdAt and keeps the Latest query compatible', () => {
   const post = normalizeXPost({
     id: '1234567890123456789',
     created_at: 'Wed Aug 06 12:00:02 +0000 2026',
-    user: { name: 'Sanitized author', screen_name: 'fixture_author' },
+    user: { name: 'Sanitized author', screen_name: 'fixture_author', followers_count: 24680 },
     full_text: 'fixture X post',
     url: 'https://x.com/fixture_author/status/1234567890123456789'
   }, 'Power Platform', 0);
   assert.equal(post.createdAt, '2026-08-06T12:00:02.000Z');
   assert.equal(post.author.username, 'fixture_author');
+  assert.equal(post.author.followers, 24680);
+});
+
+test('parses follower counts from sanitized real profile responses', () => {
+  assert.equal(extractFollowerCount(twitterProfileFixture, 'x'), 1234567);
+  assert.equal(extractFollowerCount(linkedinProfileFixture, 'linkedin'), 123456);
+});
+
+test('builds validated follower profile lookups', () => {
+  assert.deepEqual(followerLookupRequest({ platform: 'x', username: '@fixture_author' }), {
+    platform: 'x',
+    username: 'fixture_author',
+    profileUrl: 'https://x.com/fixture_author',
+    cacheKey: 'x:fixture_author',
+    sku: 'twitter.profile',
+    body: { handle: 'fixture_author' }
+  });
+  assert.deepEqual(followerLookupRequest({ platform: 'linkedin', username: 'fixture-author', profileUrl: 'https://www.linkedin.com/in/fixture-author/' })?.body, { url: 'https://www.linkedin.com/in/fixture-author' });
+  assert.equal(followerLookupRequest({ platform: 'linkedin', username: 'fixture', profileUrl: 'https://example.com/in/fixture' })?.body.url, 'https://www.linkedin.com/in/fixture');
+  assert.equal(followerLookupRequest({ platform: 'linkedin', username: 'unknown', profileUrl: 'https://example.com/in/fixture' }), null);
+  assert.equal(followerLookupRequest({ platform: 'x', username: 'not a handle' }), null);
+});
+
+test('keeps profile request field names but redacts their values in diagnostics', () => {
+  assert.deepEqual(diagnosticRequestBody({ handle: 'fixture_author' }, true), { handle: '[redacted]' });
+  assert.deepEqual(diagnosticRequestBody({ url: 'https://www.linkedin.com/in/fixture-author' }, true), { url: '[redacted]' });
 });
 
 test('identifies comments and replies without rejecting ordinary posts', () => {
