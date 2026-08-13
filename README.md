@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.4.20 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.4.22 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -31,7 +31,9 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 ## Features
 
 - Fresh feed with Best matches, Newest, and Momentum views.
+- Opportunity scoring prioritizes fresh, unanswered posts so you can engage early; replies reduce the score as the conversation fills up.
 - Search terms are highlighted in result text for faster scanning.
+- Original post line breaks are preserved, with long posts expandable after a 10-line preview.
 - Separate watchlists for each source.
 - X search with `queryType: "Latest"`, author filters, and local repost exclusion.
 - Direct LinkedIn search ordered by publication date, with rich author and engagement details.
