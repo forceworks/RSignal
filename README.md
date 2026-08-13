@@ -6,11 +6,11 @@ It searches public sources through AnyAPI, normalizes results into one feed, sco
 
 ## Read-only behavior
 
-RSignals does not automatically act on your behalf. It never creates posts, comments, likes, reposts, messages, follows, or other social activity. It only reads public results through AnyAPI and can open the source link so you can decide what to do manually.
+RSignals does not automatically act on your behalf. It never creates posts, comments, likes, reposts, messages, follows, or other social activity. It only reads public results through AnyAPI, can optionally draft replies with OpenAI, and opens the source link so you can decide what to do manually.
 
 ## Current status
 
-Version 1.4.22 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.5.0 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -48,6 +48,10 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Manual scanning and configurable background scanning.
 - Self-registering Windows toast notifications for ZIP builds, a test notification control, and tray controls.
 - Demo mode when no AnyAPI key is configured.
+- A direct AnyAPI signup link appears when no API key is configured.
+- Optional on-demand AI relevance assessment and three suggested reply drafts.
+- ChatGPT subscription sign-in, with a bring-your-own OpenAI API key fallback.
+- Persistent AI engagement instructions for semantic feed exclusions and reply style.
 
 ## Supported sources
 
@@ -103,6 +107,7 @@ The installer is per-user and does not require an installation-folder choice. Th
 - Windows 10 or later.
 - Node.js LTS.
 - An AnyAPI key for live results. The UI runs in demo mode without one.
+- A ChatGPT plan with Codex access or an OpenAI API key for the optional AI Assist feature.
 
 ### Commands
 
@@ -123,6 +128,16 @@ Release builds use Azure Artifact Signing with the existing Forceworks Public Tr
 Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/). Paste it into Watchlists and select Save key. The key is stored locally in the Electron user-data directory and is never sent to the social platforms directly.
 
 Follower counts load after scan results appear. RSignals deduplicates authors and caches profile counts locally for 24 hours to limit paid `twitter.profile` and `linkedin.profile` calls. Counts are omitted when a profile cannot be resolved.
+
+## Optional AI Assist
+
+Open Settings, find AI Assist, and choose **Connect ChatGPT** to sign in with a ChatGPT subscription that includes Codex access. As a fallback, expand **Use an OpenAI API key instead**; API usage is then billed separately by OpenAI.
+
+AI engagement instructions can describe what to show or avoid semantically, regardless of exact wording, and how suggested replies should sound. For example, an instruction to avoid hiring content can recognize recruiting and staffing announcements that do not contain the word “hiring.” When instructions are saved, RSignals sends each new scan batch to OpenAI before displaying posts or sending notifications. Screening is batched and cached; if it is unavailable, RSignals fails open by showing the posts and reporting that screening was skipped.
+
+Selecting **AI Assist** on a result sends that public post, its watchlist topic and public metrics, your profile, and the engagement instructions to OpenAI. It returns a relevance assessment and helpful, curious, and concise reply drafts inline. You can copy a draft, but RSignals never submits it or performs any social action.
+
+OpenAI credentials are managed by the official bundled Codex runtime in the Windows credential store. RSignals does not log or persist credentials in its own files. AI results are cached locally for up to 30 days to avoid repeat usage for the same post and profile.
 
 Optional SKU overrides are available for development:
 
@@ -148,6 +163,8 @@ Timestamp handling supports Unix seconds, Unix milliseconds, ISO dates, relative
 - Seen-post history is stored in `seen-posts.json` and trimmed to recent history.
 - The server may write sanitized internal logs and last-response files for troubleshooting.
 - Raw response fixture capture is opt-in through `SIGNAL_DIAGNOSTIC_MODE=1` and sanitizes credentials and sensitive values.
+- AI engagement instructions and the user profile are stored in browser `localStorage`.
+- The optional Codex runtime stores OpenAI credentials in the Windows credential store; generated screening decisions and AI assessments are cached in `ai-analysis-cache.json` for up to 30 days.
 
 RSignals does not use platform login cookies or credentials. Never commit API keys, runtime files, logs, diagnostic output, `node_modules`, or `dist`; the repository `.gitignore` excludes these paths.
 
@@ -167,6 +184,7 @@ The hook blocks credential and runtime filenames even when `git add -f` was used
 main.js                 Electron window, tray, notifications, and startup
 preload.cjs             Narrow renderer-to-main IPC bridge
 server.js               Local HTTP server, AnyAPI calls, parsers, dedupe, freshness
+codex-service.js        Isolated OpenAI Codex authentication and AI Assist service
 public/index.html       Application markup
 public/app.js           Renderer state, scanning, cards, and settings
 public/styles.css       RapidStarter-aligned visual system

@@ -27,6 +27,15 @@ function trayIcon() {
   return nativeImage.createFromPath(assetPath('tray.png'));
 }
 
+function canOpenExternal(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase().replace(/^www\./, '');
+    return ['x.com', 'twitter.com', 'linkedin.com', 'reddit.com', 'youtube.com', 'youtu.be', 'tiktok.com', 'substack.com', 'getanyapi.com', 'chatgpt.com', 'auth.openai.com', 'platform.openai.com'].includes(host) || host.endsWith('.substack.com');
+  } catch { return false; }
+}
+
 function registerWindowsNotifications() {
   if (process.platform !== 'win32' || !app.isPackaged) return true;
   const shortcutPath = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'RSignals.lnk');
@@ -67,6 +76,10 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (canOpenExternal(url)) void shell.openExternal(url);
+    return { action: 'deny' };
+  });
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
   mainWindow.on('close', event => {
     if (!quitting) {
@@ -124,11 +137,7 @@ ipcMain.handle('notify', (_event, payload) => {
   }
 });
 
-ipcMain.handle('open-external', (_event, url) =>
-  typeof url === 'string' && /^https:\/\/(?:www\.)?(?:(?:x|twitter|linkedin|reddit|youtube|tiktok|substack)\.com|getanyapi\.com)\//i.test(url)
-    ? shell.openExternal(url)
-    : false
-);
+ipcMain.handle('open-external', (_event, url) => typeof url === 'string' && canOpenExternal(url) ? shell.openExternal(url) : false);
 ipcMain.handle('set-startup', (_event, enabled) => {
   app.setLoginItemSettings({ openAtLogin: Boolean(enabled), openAsHidden: true });
   return app.getLoginItemSettings().openAtLogin;

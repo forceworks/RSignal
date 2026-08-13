@@ -1,6 +1,6 @@
 {
   "name": "signal-desktop",
-  "version": "1.4.22",
+  "version": "1.5.0",
   "description": "RSignals opportunity scanner for fresh public conversations.",
   "type": "module",
   "main": "main.js",
@@ -13,6 +13,7 @@
     "pack": "electron-builder --win dir"
   },
   "devDependencies": {
+    "@openai/codex": "0.147.0",
     "electron": "43.3.0",
     "electron-builder": "26.15.3"
   },
@@ -30,9 +31,17 @@
       "main.js",
       "preload.cjs",
       "server.js",
+      "codex-service.js",
       "public/**/*",
       "assets/**/*",
+      "THIRD_PARTY_NOTICES.md",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe",
+        "to": "codex/codex.exe"
+      }
     ],
     "win": {
       "target": [
@@ -66,6 +75,5 @@
       "uninstallerIcon": "assets/icon.ico",
       "installerHeaderIcon": "assets/icon.ico"
     }
-  },
-  "dependencies": {}
+  }
 }

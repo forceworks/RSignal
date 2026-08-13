@@ -2,6 +2,7 @@ import http from 'node:http';
 import { readFile, writeFile, appendFile, rename, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CodexService, safeError as safeCodexError } from './codex-service.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const publicDir = join(root, 'public');
@@ -46,6 +47,7 @@ function diagnosticRequestBody(body,redact=false) {
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml' };
 function sendJson(res,status,body){ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(body)); }
 function collect(req){ return new Promise((resolve,reject)=>{ let data=''; req.on('data',c=>{ data+=c; if(data.length>1_000_000) reject(new Error('Request too large')); }); req.on('end',()=>resolve(data)); req.on('error',reject); }); }
+function aiErrorStatus(error){ if(Number(error?.statusCode))return Number(error.statusCode); const message=String(error?.message||''); return /usage.?limit|rate.?limit/i.test(message)?429:/unavailable|incomplete|not running|stopped/i.test(message)?503:500; }
 
 function pickArray(value) {
   if (Array.isArray(value)) return value;
@@ -498,8 +500,24 @@ function demoPosts(platform,query,limit=12){
   return templates.slice(0,limit).map((t,i)=>{const id=`demo-${platform}-${i}`;const urls={x:`https://x.com/${t[1]}/status/${id}`,linkedin:`https://www.linkedin.com/feed/update/urn:li:activity:700000000000000000${i}/`,reddit:`https://www.reddit.com/r/technology/comments/${id}/`,youtube:`https://www.youtube.com/watch?v=${id}`,tiktok:`https://www.tiktok.com/@${t[1]}/video/${id}`,substack:`https://signal-demo.substack.com/p/${id}`};return {platform,id,query,author:{name:t[0],username:t[1],verified:i%3===0,followers:[18400,7200,31500,4900][i]},text:t[2],url:urls[platform]||urls.x,createdAt:new Date(now-[11,19,27,43][i]*60000).toISOString(),replies:t[3],likes:t[4],reposts:t[5],views:t[6]};});
 }
 
-export function createSignalServer(){ return http.createServer(async(req,res)=>{ try{
+export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const server=http.createServer(async(req,res)=>{ try{
   const url=new URL(req.url,`http://${req.headers.host}`);
+  if(req.method==='GET'&&url.pathname==='/api/ai/status') return sendJson(res,200,await aiService.status());
+  if(req.method==='POST'&&url.pathname==='/api/ai/login/chatgpt'){
+    try{return sendJson(res,200,await aiService.loginChatGPT());}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}
+  }
+  if(req.method==='POST'&&url.pathname==='/api/ai/login/key'){
+    try{const body=JSON.parse((await collect(req))||'{}');return sendJson(res,200,await aiService.loginApiKey(body.apiKey||body.key));}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}
+  }
+  if(req.method==='POST'&&url.pathname==='/api/ai/logout'){
+    try{return sendJson(res,200,await aiService.logout());}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}
+  }
+  if(req.method==='POST'&&url.pathname==='/api/ai/analyze'){
+    try{const body=JSON.parse((await collect(req))||'{}');return sendJson(res,200,await aiService.analyze(body.post,body.profile,body.instructions));}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}
+  }
+  if(req.method==='POST'&&url.pathname==='/api/ai/screen'){
+    try{const body=JSON.parse((await collect(req))||'{}');return sendJson(res,200,await aiService.screen(body.posts,body.instructions,body.profile));}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}
+  }
   if(req.method==='POST'&&url.pathname==='/api/search'){
     const body=JSON.parse((await collect(req))||'{}');
     const supportedPlatforms=['x','linkedin','reddit','youtube','tiktok','substack'];
@@ -548,7 +566,7 @@ export function createSignalServer(){ return http.createServer(async(req,res)=>{
   if(req.method==='GET'&&url.pathname==='/api/status'){ return sendJson(res,200,{configured:Boolean(await getAnyApiKey()),version:appVersion,skus:Object.fromEntries(['x','linkedin','reddit','youtube','tiktok','substack'].map(platform=>[platform,sourceSku(platform)]))}); }
   if(req.method==='GET'&&url.pathname==='/api/log'){ try{ const text=await readFile(join(getDataDir(),'signal-debug.log'),'utf8'); return sendJson(res,200,{log:text.split('\n').filter(Boolean).slice(-300).join('\n')}); }catch{return sendJson(res,200,{log:''});} }
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
-}catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); }
-export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
+}catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); server.on('close',()=>{void aiService.stop?.();}); return server; }
+export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(options); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
 export { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }

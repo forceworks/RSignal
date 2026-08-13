@@ -75,7 +75,7 @@
       </section>
 
       <section id="settingsView" class="hidden">
-        <div class="section-head"><h2>Settings</h2><p>Control scanning, notifications, quiet hours, and startup behavior.</p></div>
+        <div class="section-head"><h2>Settings</h2><p>Control scanning, notifications, optional AI assistance, quiet hours, and startup behavior.</p></div>
         <div class="settings-card">
           <div class="settings-grid">
             <section class="settings-group">
@@ -98,6 +98,25 @@
               <label class="setting-toggle"><input id="quietHoursEnabled" type="checkbox" /><span>Pause automatic scans during quiet hours</span></label>
               <div class="quiet-hours"><label>From <input id="quietStart" type="time" value="22:00" /></label><label>To <input id="quietEnd" type="time" value="07:00" /></label></div>
               <div class="quiet-days" aria-label="Quiet days"><span>All day on</span><label><input class="quiet-day" type="checkbox" value="1" /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" checked /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" checked /> Sun</label></div>
+            </section>
+
+            <section class="settings-group settings-group-wide ai-settings">
+              <div class="settings-group-head"><h3>AI Assist <span class="optional-label">Optional</span></h3><p>Control what opportunities AI shows and how it drafts replies. RSignals never posts, likes, comments, or messages on your behalf.</p></div>
+              <div class="ai-connection-row">
+                <div><span id="aiStatus" class="key-status" aria-live="polite">Checking…</span><small id="aiStatusDetail">Use your ChatGPT subscription or your own OpenAI API key.</small></div>
+                <div class="ai-connection-actions"><button id="connectChatGPT" class="primary" type="button">Connect ChatGPT</button><button id="disconnectAi" class="secondary hidden" type="button">Disconnect</button></div>
+              </div>
+              <details class="api-fallback">
+                <summary>Use an OpenAI API key instead</summary>
+                <div class="key-row"><input id="openAiApiKey" type="password" autocomplete="off" placeholder="Paste your OpenAI API key" /><button id="saveOpenAiKey" class="secondary" type="button">Use API key</button><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">Create a key</a></div>
+                <div class="hint">API usage is billed by OpenAI. The key is passed directly to the official Codex credential store and is never logged.</div>
+              </details>
+              <label for="aiInstructions">AI engagement instructions</label>
+              <textarea id="aiInstructions" rows="5" placeholder="Examples: Do not show posts about hiring. Focus on people asking for practical advice. Keep suggested replies helpful and never salesy."></textarea>
+              <div class="hint">When this field is not empty, each new scan batch is sent to OpenAI for semantic screening before posts appear or notifications are sent. If screening is unavailable, RSignals shows the posts and reports that AI screening was skipped.</div>
+              <label for="aiProfile">Your profile</label>
+              <textarea id="aiProfile" rows="4" placeholder="Briefly describe your role, expertise, preferred tone, and anything replies should avoid."></textarea>
+              <div class="hint">Your profile helps AI assess fit without inventing experience. Engagement instructions also apply to on-demand reply drafts.</div>
             </section>
 
             <section class="settings-group settings-group-wide">
