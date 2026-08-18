@@ -32,7 +32,7 @@ function canOpenExternal(value) {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
     const host = url.hostname.toLowerCase().replace(/^www\./, '');
-    return ['x.com', 'twitter.com', 'linkedin.com', 'reddit.com', 'youtube.com', 'youtu.be', 'tiktok.com', 'substack.com', 'getanyapi.com', 'chatgpt.com', 'auth.openai.com', 'platform.openai.com'].includes(host) || host.endsWith('.substack.com');
+    return ['x.com', 'twitter.com', 'linkedin.com', 'reddit.com', 'youtube.com', 'youtu.be', 'tiktok.com', 'substack.com', 'getanyapi.com', 'chatgpt.com', 'auth.openai.com', 'platform.openai.com', 'producthunt.com'].includes(host) || host.endsWith('.substack.com');
   } catch { return false; }
 }
 

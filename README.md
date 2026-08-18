@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.5.0 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.5.1 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -49,7 +49,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Self-registering Windows toast notifications for ZIP builds, a test notification control, and tray controls.
 - Demo mode when no AnyAPI key is configured.
 - A direct AnyAPI signup link appears when no API key is configured.
-- Optional on-demand AI relevance assessment and three suggested reply drafts.
+- Optional on-demand AI relevance assessment and four suggested reply drafts.
 - ChatGPT subscription sign-in, with a bring-your-own OpenAI API key fallback.
 - Persistent AI engagement instructions for semantic feed exclusions and reply style.
 
@@ -135,7 +135,7 @@ Open Settings, find AI Assist, and choose **Connect ChatGPT** to sign in with a 
 
 AI engagement instructions can describe what to show or avoid semantically, regardless of exact wording, and how suggested replies should sound. For example, an instruction to avoid hiring content can recognize recruiting and staffing announcements that do not contain the word “hiring.” When instructions are saved, RSignals sends each new scan batch to OpenAI before displaying posts or sending notifications. Screening is batched and cached; if it is unavailable, RSignals fails open by showing the posts and reporting that screening was skipped.
 
-Selecting **AI Assist** on a result sends that public post, its watchlist topic and public metrics, your profile, and the engagement instructions to OpenAI. It returns a relevance assessment and helpful, curious, and concise reply drafts inline. You can copy a draft, but RSignals never submits it or performs any social action.
+Selecting **AI Assist** on a result sends that public post, its watchlist topic and public metrics, your profile, and the engagement instructions to OpenAI. It returns a relevance assessment and helpful, curious, concise, and constructively contrarian reply drafts inline. You can copy a draft, but RSignals never submits it or performs any social action.
 
 OpenAI credentials are managed by the official bundled Codex runtime in the Windows credential store. RSignals does not log or persist credentials in its own files. AI results are cached locally for up to 30 days to avoid repeat usage for the same post and profile.
 
