@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.5.1 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.5.2 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -117,7 +117,7 @@ npm test
 npm start
 ```
 
-For a packaged Windows directory build, run `npm run pack`. For a Windows x64 installer, run `npm run dist`.
+For a packaged Windows directory build, run `npm run pack`. Run `npm run release:zip` to build a Windows Explorer-compatible portable ZIP and validate its structure, code signature, and checksum. For a Windows x64 installer, run `npm run dist`.
 
 ## Windows code signing
 

@@ -1,6 +1,6 @@
 {
   "name": "signal-desktop",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "RSignals opportunity scanner for fresh public conversations.",
   "type": "module",
   "main": "main.js",
@@ -10,7 +10,8 @@
     "start": "electron .",
     "test": "node --test",
     "dist": "electron-builder --win nsis",
-    "pack": "electron-builder --win dir"
+    "pack": "electron-builder --win dir",
+    "release:zip": "pwsh -NoProfile -File scripts/New-PortableRelease.ps1"
   },
   "devDependencies": {
     "@openai/codex": "0.147.0",
