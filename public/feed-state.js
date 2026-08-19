@@ -11,7 +11,7 @@ export function mergeScanPosts(existingPosts, incomingPosts, { maxAgeHours = 3, 
   const keep = post => {
     const key = postIdentity(post);
     const publishedAt = new Date(post?.createdAt).getTime();
-    return key !== 'unknown:' && !hiddenKeys.has(key) && Number.isFinite(publishedAt) && publishedAt >= cutoff;
+    return key !== 'unknown:' && !hiddenKeys.has(key) && Number.isFinite(publishedAt) && publishedAt > cutoff;
   };
 
   for (const post of Array.isArray(incomingPosts) ? incomingPosts : []) {

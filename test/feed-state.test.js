@@ -37,3 +37,14 @@ test('keeps current opportunities when a scan returns no new posts', () => {
   const current = fixture('current', 20);
   assert.deepEqual(mergeScanPosts([current], [], { maxAgeHours: 3, now }), [current]);
 });
+
+test('expires opportunities as soon as they reach the freshness limit', () => {
+  const now = Date.UTC(2026, 7, 19, 12);
+  const justFresh = fixture('just-fresh', 179.5);
+  const atLimit = fixture('at-limit', 180);
+
+  assert.deepEqual(
+    mergeScanPosts([justFresh, atLimit], [], { maxAgeHours: 3, now }).map(post => post.id),
+    ['just-fresh']
+  );
+});
