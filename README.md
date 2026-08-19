@@ -31,6 +31,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 ## Features
 
 - Fresh feed with Best matches, Newest, and Momentum views.
+- New scans merge into the current feed; existing opportunities remain until they expire under the configured freshness window or are hidden.
 - Opportunity scoring prioritizes fresh, unanswered posts so you can engage early; replies reduce the score as the conversation fills up.
 - Search terms are highlighted in result text for faster scanning.
 - Original post line breaks are preserved, with long posts expandable after a 10-line preview.
@@ -46,6 +47,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - Save and hide actions persisted across rescans and restarts.
 - Relative timestamps that refresh while the app is open.
 - Manual scanning and configurable background scanning.
+- Daily update checks with an in-app download notice and an optional one-time Windows toast for each new version.
 - Self-registering Windows toast notifications for ZIP builds, a test notification control, and tray controls.
 - Demo mode when no AnyAPI key is configured.
 - A direct AnyAPI signup link appears when no API key is configured.

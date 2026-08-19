@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, sourceQuery, sourceRequest } from '../server.js';
+import { compareVersions, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, releaseUpdateStatus, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
@@ -11,6 +11,31 @@ const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.searc
 const youtubeFixture = JSON.parse(await readFile(new URL('./fixtures/youtube.search.sanitized.json', import.meta.url), 'utf8'));
 const tiktokFixture = JSON.parse(await readFile(new URL('./fixtures/tiktok.hashtag_videos.sanitized.json', import.meta.url), 'utf8'));
 const substackFixture = JSON.parse(await readFile(new URL('./fixtures/substack.posts.sanitized.json', import.meta.url), 'utf8'));
+
+test('detects and caches newer public GitHub releases', async () => {
+  let calls = 0;
+  const checker = createUpdateChecker({
+    currentVersion: '1.5.2',
+    now: () => Date.UTC(2026, 7, 18, 12),
+    fetchImpl: async () => {
+      calls++;
+      return { ok: true, json: async () => ({ tag_name: 'v1.6.0' }) };
+    }
+  });
+  const expected = {
+    checked: true,
+    checkedAt: '2026-08-18T12:00:00.000Z',
+    currentVersion: '1.5.2',
+    latestVersion: '1.6.0',
+    updateAvailable: true,
+    releaseUrl: 'https://github.com/forceworks/RSignal/releases/tag/v1.6.0'
+  };
+  assert.deepEqual(await checker(), expected);
+  assert.deepEqual(await checker(), expected);
+  assert.equal(calls, 1);
+  assert.equal(compareVersions('1.10.0', '1.9.9'), 1);
+  assert.equal(releaseUpdateStatus({ tag_name: 'v1.5.2' }, '1.5.2').updateAvailable, false);
+});
 
 test('parses the real LinkedIn response shape and createdUtc Unix seconds', () => {
   const rawPosts = extractLinkedInPosts(linkedinFixture);
@@ -51,6 +76,8 @@ test('keeps source topics separate from platform query syntax', () => {
   const topic = '"AI agents" AND (enterprise OR SaaS) -is:repost -is:retweet';
   assert.equal(sourceQuery('linkedin', topic), '"AI agents" AND (enterprise OR SaaS)');
   assert.equal(sourceQuery('x', topic), '"AI agents" enterprise OR SaaS');
+  assert.equal(sourceQuery('x', 'build your own CRM OR vibe coded CRM'), '"build your own CRM" OR "vibe coded CRM"');
+  assert.equal(sourceQuery('x', '"Microsoft Copilot" OR "Microsoft Scout" OR OpenClaw'), '"Microsoft Copilot" OR "Microsoft Scout" OR OpenClaw');
 });
 
 test('normalizes X createdAt and keeps the Latest query compatible', () => {

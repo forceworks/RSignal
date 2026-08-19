@@ -9,7 +9,56 @@ const publicDir = join(root, 'public');
 const appVersion = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).version;
 function getDataDir() { return process.env.SIGNAL_DATA_DIR || root; }
 const port = Number(process.env.PORT || 3000);
+const updateCheckMaxAgeMs = 24 * 60 * 60 * 1000;
+const latestReleaseApi = 'https://api.github.com/repos/forceworks/RSignal/releases/latest';
 let activeApiKey = '';
+
+export function compareVersions(left, right) {
+  const parts = value => String(value || '').replace(/^v/i, '').split('.').slice(0, 3).map(part => Number.parseInt(part, 10));
+  const a = parts(left), b = parts(right);
+  if (a.length !== 3 || b.length !== 3 || [...a, ...b].some(part => !Number.isInteger(part) || part < 0)) return 0;
+  for (let index = 0; index < 3; index++) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
+  return 0;
+}
+
+export function releaseUpdateStatus(release, currentVersion = appVersion, checkedAt = new Date().toISOString()) {
+  const tag = String(release?.tag_name || '').trim();
+  const match = tag.match(/^v?(\d+\.\d+\.\d+)$/i);
+  if (!match) throw new Error('GitHub returned an invalid release version.');
+  const latestVersion = match[1];
+  return {
+    checked: true,
+    checkedAt,
+    currentVersion,
+    latestVersion,
+    updateAvailable: compareVersions(currentVersion, latestVersion) < 0,
+    releaseUrl: `https://github.com/forceworks/RSignal/releases/tag/${encodeURIComponent(tag)}`
+  };
+}
+
+export function createUpdateChecker({ fetchImpl = globalThis.fetch, currentVersion = appVersion, now = Date.now, maxAgeMs = updateCheckMaxAgeMs } = {}) {
+  let cached = null;
+  return async function checkForUpdate() {
+    const timestamp = Number(now());
+    if (cached && timestamp - cached.timestamp < maxAgeMs) return cached.result;
+    try {
+      const response = await fetchImpl(latestReleaseApi, {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': `RSignals/${currentVersion}`,
+          'X-GitHub-Api-Version': '2022-11-28'
+        },
+        signal: AbortSignal.timeout(8_000)
+      });
+      if (!response.ok) throw new Error(`GitHub release check failed (${response.status}).`);
+      const result = releaseUpdateStatus(await response.json(), currentVersion, new Date(timestamp).toISOString());
+      cached = { timestamp, result };
+      return result;
+    } catch {
+      return { checked: false, currentVersion, updateAvailable: false };
+    }
+  };
+}
 
 async function getAnyApiKey() {
   if (process.env.ANYAPI_KEY) {
@@ -120,7 +169,14 @@ function sourceQuery(platform, topic) {
   }
   // Keep the first X pass deliberately small: phrases, terms, and OR are supported
   // by the observed provider response. Do not assume the full native X grammar.
-  return clean.replace(/[()]/g, ' ').replace(/\bAND\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  const simplified = clean.replace(/[()]/g, ' ').replace(/\bAND\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  const alternatives = simplified.split(/\s+OR\s+/i);
+  if (alternatives.length < 2) return simplified;
+  return alternatives.map(alternative => {
+    const value = alternative.trim();
+    if (!value || value.includes('"') || /(?:^|\s)(?:from|to|lang|since|until|filter|is):/i.test(value)) return value;
+    return value.split(/\s+/).length > 1 ? `"${value}"` : value;
+  }).join(' OR ');
 }
 
 function isRepostRecord(raw, platform) {
@@ -500,8 +556,9 @@ function demoPosts(platform,query,limit=12){
   return templates.slice(0,limit).map((t,i)=>{const id=`demo-${platform}-${i}`;const urls={x:`https://x.com/${t[1]}/status/${id}`,linkedin:`https://www.linkedin.com/feed/update/urn:li:activity:700000000000000000${i}/`,reddit:`https://www.reddit.com/r/technology/comments/${id}/`,youtube:`https://www.youtube.com/watch?v=${id}`,tiktok:`https://www.tiktok.com/@${t[1]}/video/${id}`,substack:`https://signal-demo.substack.com/p/${id}`};return {platform,id,query,author:{name:t[0],username:t[1],verified:i%3===0,followers:[18400,7200,31500,4900][i]},text:t[2],url:urls[platform]||urls.x,createdAt:new Date(now-[11,19,27,43][i]*60000).toISOString(),replies:t[3],likes:t[4],reposts:t[5],views:t[6]};});
 }
 
-export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const server=http.createServer(async(req,res)=>{ try{
+export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const updateChecker=options.updateChecker||createUpdateChecker(); const server=http.createServer(async(req,res)=>{ try{
   const url=new URL(req.url,`http://${req.headers.host}`);
+  if(req.method==='GET'&&url.pathname==='/api/update') return sendJson(res,200,await updateChecker());
   if(req.method==='GET'&&url.pathname==='/api/ai/status') return sendJson(res,200,await aiService.status());
   if(req.method==='POST'&&url.pathname==='/api/ai/login/chatgpt'){
     try{return sendJson(res,200,await aiService.loginChatGPT());}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}

@@ -34,6 +34,11 @@
         <button id="scanButton" class="primary">Scan now</button>
       </header>
 
+      <section id="updateBanner" class="update-banner hidden" aria-live="polite">
+        <div class="update-banner-copy"><span>Update available</span><strong>RSignals <b id="updateVersion"></b> is ready</strong><p>Download the latest signed Windows ZIP when it is convenient.</p></div>
+        <div class="update-banner-actions"><a id="downloadUpdate" class="primary" href="#" target="_blank" rel="noopener noreferrer">Download update</a><button id="snoozeUpdate" class="secondary" type="button">Remind me later</button></div>
+      </section>
+
       <section id="feedView">
         <div class="toolbar">
           <div class="tabs"><button class="tab active" data-filter="all">Best matches</button><button class="tab" data-filter="fresh">Newest</button><button class="tab" data-filter="momentum">Momentum</button></div>

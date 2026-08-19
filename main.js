@@ -32,7 +32,7 @@ function canOpenExternal(value) {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
     const host = url.hostname.toLowerCase().replace(/^www\./, '');
-    return ['x.com', 'twitter.com', 'linkedin.com', 'reddit.com', 'youtube.com', 'youtu.be', 'tiktok.com', 'substack.com', 'getanyapi.com', 'chatgpt.com', 'auth.openai.com', 'platform.openai.com', 'producthunt.com'].includes(host) || host.endsWith('.substack.com');
+    return ['x.com', 'twitter.com', 'linkedin.com', 'reddit.com', 'youtube.com', 'youtu.be', 'tiktok.com', 'substack.com', 'getanyapi.com', 'chatgpt.com', 'auth.openai.com', 'platform.openai.com', 'producthunt.com', 'github.com'].includes(host) || host.endsWith('.substack.com');
   } catch { return false; }
 }
 
@@ -122,7 +122,7 @@ ipcMain.handle('notify', (_event, payload) => {
     notification.on('close', () => activeNotifications.delete(notification));
     notification.on('click', () => {
       showWindow();
-      if (payload?.url) shell.openExternal(payload.url);
+      if (payload?.url && canOpenExternal(payload.url)) shell.openExternal(payload.url);
     });
     return new Promise(resolve => {
       let settled = false;
