@@ -1,6 +1,6 @@
 {
   "name": "signal-desktop",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "description": "RSignals opportunity scanner for fresh public conversations.",
   "type": "module",
   "main": "main.js",
