@@ -1,0 +1,70 @@
+{
+  "output": {
+    "found": true,
+    "data": {
+      "author": {
+        "avatarUrl": "https://pbs.twimg.com/profile_images/sanitized-avatar.jpg",
+        "bio": "[sanitized X author bio]",
+        "blueVerified": true,
+        "coverUrl": "https://pbs.twimg.com/profile_banners/sanitized-cover",
+        "createdUtc": 1420070400,
+        "followers": 12345,
+        "following": 321,
+        "handle": "sanitized_author",
+        "id": "sanitized-author-id",
+        "location": "[sanitized location]",
+        "name": "Sanitized X author",
+        "url": "https://x.com/sanitized_author",
+        "verified": false
+      },
+      "contentBlocks": [
+        {
+          "entities": [],
+          "inlineStyles": [],
+          "text": "[sanitized opening paragraph]",
+          "type": "unstyled"
+        },
+        {
+          "entities": [],
+          "inlineStyles": [],
+          "text": "[sanitized section heading]",
+          "type": "header-two"
+        },
+        {
+          "entities": [],
+          "inlineStyles": [],
+          "text": "[sanitized numbered point]",
+          "type": "ordered-list-item"
+        },
+        {
+          "entities": [],
+          "inlineStyles": [],
+          "text": "[sanitized bullet point]",
+          "type": "unordered-list-item"
+        },
+        {
+          "entities": [],
+          "height": 720,
+          "image": "https://pbs.twimg.com/media/sanitized-inline-image.jpg",
+          "inlineStyles": [],
+          "type": "image",
+          "width": 1280
+        }
+      ],
+      "coverImage": "https://pbs.twimg.com/media/sanitized-article-cover.jpg",
+      "createdUtc": 1743120000,
+      "id": "sanitized-x-article-id",
+      "likes": 42,
+      "previewText": "[sanitized X article preview]",
+      "quotes": 3,
+      "replies": 7,
+      "title": "[sanitized X article title]",
+      "views": 9876
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.00075,
+  "items": 1,
+  "replayed": false,
+  "resultId": "sanitized-twitter-article-result-id"
+}

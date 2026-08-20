@@ -445,6 +445,44 @@ function canonicalLinkedInArticleUrl(value){
     return `https://www.linkedin.com${parsed.pathname.replace(/\/+$/,'')}`;
   }catch{return '';}
 }
+function canonicalXPostUrl(value){
+  try{
+    const parsed=new URL(String(value));
+    const hostname=parsed.hostname.toLowerCase().replace(/^(?:www\.|mobile\.)/,'');
+    const match=parsed.pathname.match(/^\/(?:([A-Za-z0-9_]+)|i\/web)\/status\/(\d+)\/?$/i);
+    if(!['x.com','twitter.com'].includes(hostname)||!match) return '';
+    return `https://x.com/${match[1]||'i/web'}/status/${match[2]}`;
+  }catch{return '';}
+}
+function normalizeXArticle(payload,fallbackUrl=''){
+  const data=payload?.output?.data||payload?.data||payload?.output||payload||{},blocks=Array.isArray(data?.contentBlocks)?data.contentBlocks:[];
+  const body=blocks.map(block=>{
+    const text=String(block?.text??'').trim();
+    if(!text) return '';
+    if(block?.type==='ordered-list-item') return `1. ${text}`;
+    if(block?.type==='unordered-list-item') return `• ${text}`;
+    return text;
+  }).filter(Boolean).join('\n\n').slice(0,100_000);
+  const author=data?.author&&typeof data.author==='object'?data.author:{};
+  return {
+    title:String(firstValue(data?.title)??''),
+    description:String(firstValue(data?.previewText)??''),
+    body,
+    url:canonicalXPostUrl(fallbackUrl),
+    image:safeHttpsUrl(data?.coverImage),
+    author:{
+      name:String(firstValue(author?.name,author?.handle,'X author')),
+      profileUrl:safeHttpsUrl(author?.url),
+      followers:optionalMetricValue(author?.followers)
+    },
+    createdAt:parsePostDate(data?.createdUtc),
+    likes:metricValue(data?.likes),
+    replies:metricValue(data?.replies),
+    quotes:metricValue(data?.quotes),
+    views:metricValue(data?.views)
+  };
+}
+function isXArticleCandidate(post){ return post?.platform==='x'&&/^https:\/\/t\.co\/[A-Za-z0-9]+\/?$/i.test(String(post?.text||'').trim())&&Boolean(canonicalXPostUrl(post?.url)); }
 function normalizeLinkedInArticle(payload,fallbackUrl=''){
   const data=payload?.output?.data||payload?.data||payload?.output||payload||{};
   return {
@@ -506,6 +544,23 @@ async function getLinkedInArticle(value,key){
   cache[url]={article,fetchedAt:Date.now()};
   try{await writeArticleCache(cache);}catch{}
   return {article,cached:false,costUsd:Number(payload.costUsd||0)};
+}
+async function enrichXArticles(posts,key){
+  const candidates=posts.filter(isXArticleCandidate); let cursor=0,costUsd=0,found=0;
+  const worker=async()=>{while(cursor<candidates.length){
+    const post=candidates[cursor++];
+    try{
+      const {payload}=await callAnyApi('twitter.article',key,[{url:canonicalXPostUrl(post.url)}],{platform:'x',operation:'article_lookup',redactBody:true});
+      costUsd+=Number(payload.costUsd||0);
+      if(payload?.output?.found===false) continue;
+      const article=normalizeXArticle(payload,post.url);
+      if(!article.title||!article.body) continue;
+      post.attachment={type:'article',title:article.title,subtitle:article.description,description:'',url:article.url,image:article.image};
+      post.article=article; found++;
+    }catch(error){await logDiagnostic('x_article.failed',{platform:'x',message:safeErrorMessage(error)});}
+  }};
+  await Promise.all(Array.from({length:Math.min(4,candidates.length)},worker));
+  return {attempted:candidates.length,found,costUsd};
 }
 async function enrichFollowerProfiles(authors,key){
   const now=Date.now(),cache=await readFollowerCache(),profiles=[],pending=[],seen=new Set();
@@ -667,10 +722,11 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     const bump=(post,kind)=>{const k=`${post.platform}|||${post.query}`; rejectionByJob[k]??={missingDate:0,tooOld:0,alreadySeen:0,duplicates:0,new:0}; rejectionByJob[k][kind]++;};
     for(const post of all){ const key=postKey(post); const legacyKey=key.startsWith('x:')?key.slice(2):null; const postedAt=post.createdAt?new Date(post.createdAt).getTime():NaN; if(!Number.isFinite(postedAt)){missingDate++;bump(post,'missingDate');continue;} const ageHours=Math.max(0,(now-postedAt)/3_600_000); if(ageHours>maxAgeHours){tooOld++;bump(post,'tooOld');continue;} if(history[key]||(legacyKey&&history[legacyKey])){alreadySeen++;bump(post,'alreadySeen');continue;} posts.push(post); bump(post,'new'); history[key]=now; }
     for(const d of diagnostics){ const k=`${d.platform}|||${d.query}`; Object.assign(d,rejectionByJob[k]||{missingDate:0,tooOld:0,alreadySeen:0,duplicates:0,new:0}); }
+    const articleEnrichment=posts.some(isXArticleCandidate)?await enrichXArticles(posts,await getAnyApiKey()):{attempted:0,found:0,costUsd:0};
     await writeSeenPosts(history); posts.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-    const byPlatform={}; for(const p of platforms) byPlatform[p]={fetched:all.filter(x=>x.platform===p).length,new:posts.filter(x=>x.platform===p).length,costUsd:results.filter(r=>r.platform===p).reduce((s,r)=>s+r.costUsd,0)};
-    const responseBody={demo:results.every(r=>r.demo),posts,costUsd:results.reduce((s,r)=>s+r.costUsd,0),stats:{fetched:all.length,duplicates,alreadySeen,tooOld,missingDate,maxAgeHours,byPlatform,failures,diagnostics}};
-    await logDiagnostic('scan.complete',{maxAgeHours,totalFetched:all.length,new:posts.length,duplicates,alreadySeen,tooOld,missingDate,failures,diagnostics});
+    const byPlatform={}; for(const p of platforms) byPlatform[p]={fetched:all.filter(x=>x.platform===p).length,new:posts.filter(x=>x.platform===p).length,costUsd:results.filter(r=>r.platform===p).reduce((s,r)=>s+r.costUsd,0)+(p==='x'?articleEnrichment.costUsd:0)};
+    const responseBody={demo:results.every(r=>r.demo),posts,costUsd:results.reduce((s,r)=>s+r.costUsd,0)+articleEnrichment.costUsd,stats:{fetched:all.length,duplicates,alreadySeen,tooOld,missingDate,maxAgeHours,byPlatform,failures,diagnostics,xArticles:articleEnrichment}};
+    await logDiagnostic('scan.complete',{maxAgeHours,totalFetched:all.length,new:posts.length,duplicates,alreadySeen,tooOld,missingDate,failures,xArticles:articleEnrichment,diagnostics});
     return sendJson(res,200,responseBody);
   }
   if(req.method==='POST'&&url.pathname==='/api/followers'){
@@ -697,5 +753,5 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
 }catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); server.on('close',()=>{void aiService.stop?.();}); return server; }
 export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(options); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
-export { canonicalLinkedInArticleUrl, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
+export { canonicalLinkedInArticleUrl, canonicalXPostUrl, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, isXArticleCandidate, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXArticle, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }

@@ -122,7 +122,7 @@ ipcMain.handle('notify', (_event, payload) => {
     notification.on('close', () => activeNotifications.delete(notification));
     notification.on('click', () => {
       showWindow();
-      if (payload?.url && canOpenExternal(payload.url)) shell.openExternal(payload.url);
+      mainWindow?.webContents.send('notification-click', { postKey: String(payload?.postKey || '') });
     });
     return new Promise(resolve => {
       let settled = false;

@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { canonicalLinkedInArticleUrl, compareVersions, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, releaseUpdateStatus, sourceQuery, sourceRequest } from '../server.js';
+import { canonicalLinkedInArticleUrl, canonicalXPostUrl, compareVersions, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, isXArticleCandidate, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXArticle, normalizeXPost, normalizeYouTubeVideo, parsePostDate, releaseUpdateStatus, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
 const linkedinAttachmentsFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.attachments.sanitized.json', import.meta.url), 'utf8'));
 const linkedinArticleFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.article.sanitized.json', import.meta.url), 'utf8'));
 const twitterProfileFixture = JSON.parse(await readFile(new URL('./fixtures/twitter.profile.sanitized.json', import.meta.url), 'utf8'));
+const twitterArticleFixture = JSON.parse(await readFile(new URL('./fixtures/twitter.article.sanitized.json', import.meta.url), 'utf8'));
 const linkedinProfileFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.profile.sanitized.json', import.meta.url), 'utf8'));
 const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.search.sanitized.json', import.meta.url), 'utf8'));
 const youtubeFixture = JSON.parse(await readFile(new URL('./fixtures/youtube.search.sanitized.json', import.meta.url), 'utf8'));
@@ -127,6 +128,23 @@ test('normalizes X createdAt and keeps the Latest query compatible', () => {
   assert.equal(post.createdAt, '2026-08-06T12:00:02.000Z');
   assert.equal(post.author.username, 'fixture_author');
   assert.equal(post.author.followers, 24680);
+});
+
+test('normalizes real X article blocks and identifies link-only wrapper posts', () => {
+  const wrapperUrl = 'https://x.com/sanitized_author/status/1905545699552375179';
+  const article = normalizeXArticle(twitterArticleFixture, wrapperUrl);
+  assert.equal(article.title, '[sanitized X article title]');
+  assert.equal(article.description, '[sanitized X article preview]');
+  assert.equal(article.image, 'https://pbs.twimg.com/media/sanitized-article-cover.jpg');
+  assert.equal(article.author.followers, 12345);
+  assert.equal(article.likes, 42);
+  assert.match(article.body, /1\. \[sanitized numbered point\]/);
+  assert.match(article.body, /• \[sanitized bullet point\]/);
+  assert.doesNotMatch(article.body, /sanitized-inline-image/);
+  assert.equal(canonicalXPostUrl(`${wrapperUrl}?s=20#fragment`), wrapperUrl);
+  assert.equal(canonicalXPostUrl('https://example.com/sanitized_author/status/1905545699552375179'), '');
+  assert.equal(isXArticleCandidate({platform:'x',text:'https://t.co/AbC123',url:wrapperUrl}), true);
+  assert.equal(isXArticleCandidate({platform:'x',text:'Read this https://t.co/AbC123',url:wrapperUrl}), false);
 });
 
 test('parses follower counts from sanitized real profile responses', () => {
