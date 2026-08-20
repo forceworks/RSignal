@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { compareVersions, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, releaseUpdateStatus, sourceQuery, sourceRequest } from '../server.js';
+import { canonicalLinkedInArticleUrl, compareVersions, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXPost, normalizeYouTubeVideo, parsePostDate, releaseUpdateStatus, sourceQuery, sourceRequest } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
+const linkedinAttachmentsFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.attachments.sanitized.json', import.meta.url), 'utf8'));
+const linkedinArticleFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.article.sanitized.json', import.meta.url), 'utf8'));
 const twitterProfileFixture = JSON.parse(await readFile(new URL('./fixtures/twitter.profile.sanitized.json', import.meta.url), 'utf8'));
 const linkedinProfileFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.profile.sanitized.json', import.meta.url), 'utf8'));
 const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.search.sanitized.json', import.meta.url), 'utf8'));
@@ -60,6 +62,40 @@ test('parses rich LinkedIn search results with author and engagement details', (
   assert.equal(post.replies, 3);
   assert.equal(post.likes, 10);
   assert.equal(post.reposts, 2);
+});
+
+test('parses real LinkedIn article and video attachment fields', () => {
+  const rawPosts = extractLinkedInPosts(linkedinAttachmentsFixture);
+  assert.equal(rawPosts.length, 2);
+
+  const articlePost = normalizeLinkedInPost(rawPosts[0], 'Power Platform', 0);
+  assert.equal(articlePost.createdAt, new Date(1787212800 * 1000).toISOString());
+  assert.deepEqual(articlePost.attachment, {
+    type: 'article',
+    title: '[sanitized LinkedIn article title]',
+    subtitle: '[sanitized article subtitle]',
+    description: '',
+    url: 'https://www.linkedin.com/pulse/sanitized-linkedin-article-slug',
+    image: 'https://media.licdn.com/dms/image/sanitized-article-image'
+  });
+
+  const videoPost = normalizeLinkedInPost(rawPosts[1], 'Power Platform', 1);
+  assert.equal(videoPost.attachment.type, 'video');
+  assert.equal(videoPost.attachment.image, 'https://media.licdn.com/dms/image/sanitized-video-image');
+});
+
+test('normalizes the real linkedin.article response without changing post freshness', () => {
+  const article = normalizeLinkedInArticle(linkedinArticleFixture);
+  assert.equal(article.title, '[sanitized full LinkedIn article title]');
+  assert.equal(article.body, '[sanitized first article paragraph]\n\n[sanitized second article paragraph]');
+  assert.equal(article.author.followers, 12345);
+  assert.equal(article.createdAt, new Date(1787126400 * 1000).toISOString());
+  assert.equal(article.updatedAt, new Date(1787212800 * 1000).toISOString());
+  assert.equal(article.comments, 4);
+  assert.equal(article.reactions, 27);
+  assert.equal(canonicalLinkedInArticleUrl(`${article.url}?trackingId=sanitized#section`), article.url);
+  assert.equal(canonicalLinkedInArticleUrl('https://www.linkedin.com/posts/not-an-article'), '');
+  assert.equal(canonicalLinkedInArticleUrl('https://example.com/pulse/not-linkedin'), '');
 });
 
 test('parses publishedAt variants without treating Unix seconds as milliseconds', () => {

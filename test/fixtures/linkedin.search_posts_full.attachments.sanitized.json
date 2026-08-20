@@ -1,0 +1,70 @@
+{
+  "output": {
+    "found": true,
+    "data": {
+      "posts": [
+        {
+          "attachmentImage": "https://media.licdn.com/dms/image/sanitized-article-image",
+          "attachmentSubtitle": "[sanitized article subtitle]",
+          "attachmentTitle": "[sanitized LinkedIn article title]",
+          "attachmentType": "article",
+          "attachmentUrl": "https://www.linkedin.com/pulse/sanitized-linkedin-article-slug",
+          "author": {
+            "headline": "[sanitized LinkedIn headline]",
+            "id": "sanitized-article-author-id",
+            "image": "https://media.licdn.com/dms/image/sanitized-author-image",
+            "name": "Sanitized article author",
+            "profileUrl": "https://www.linkedin.com/in/sanitized-article-author/",
+            "publicIdentifier": "sanitized-article-author",
+            "type": "member"
+          },
+          "createdUtc": 1787212800,
+          "engagement": {
+            "breakdown": [
+              {
+                "count": 8,
+                "type": "LIKE"
+              }
+            ],
+            "comments": 1,
+            "reactions": 8,
+            "reposts": 0
+          },
+          "id": "sanitized-linkedin-article-post-id",
+          "pollOptions": [],
+          "text": "[sanitized post sharing a LinkedIn article]",
+          "url": "https://www.linkedin.com/posts/sanitized-article-author_sanitized-activity-7496089323931074560-fixture"
+        },
+        {
+          "attachmentImage": "https://media.licdn.com/dms/image/sanitized-video-image",
+          "attachmentSubtitle": "[sanitized video subtitle]",
+          "attachmentTitle": "[sanitized LinkedIn video title]",
+          "attachmentType": "video",
+          "attachmentUrl": "https://www.linkedin.com/posts/sanitized-video-author_sanitized-video",
+          "author": {
+            "name": "Sanitized video author",
+            "profileUrl": "https://www.linkedin.com/in/sanitized-video-author/",
+            "publicIdentifier": "sanitized-video-author",
+            "type": "member"
+          },
+          "createdUtc": 1787211000,
+          "engagement": {
+            "breakdown": [],
+            "comments": 0,
+            "reactions": 2,
+            "reposts": 0
+          },
+          "id": "sanitized-linkedin-video-post-id",
+          "pollOptions": [],
+          "text": "[sanitized post sharing a LinkedIn video]",
+          "url": "https://www.linkedin.com/posts/sanitized-video-author_sanitized-activity-7496081774182137856-fixture"
+        }
+      ]
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.0137,
+  "items": 2,
+  "replayed": false,
+  "resultId": "sanitized-attachment-search-result-id"
+}

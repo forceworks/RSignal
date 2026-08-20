@@ -1,0 +1,24 @@
+{
+  "output": {
+    "found": true,
+    "data": {
+      "author": "Sanitized article author",
+      "authorFollowers": 12345,
+      "authorUrl": "https://www.linkedin.com/in/sanitized-article-author/",
+      "body": "[sanitized first article paragraph]\n\n[sanitized second article paragraph]",
+      "comments": 4,
+      "createdUtc": 1787126400,
+      "description": "[sanitized article description]",
+      "image": "https://media.licdn.com/dms/image/sanitized-full-article-image",
+      "reactions": 27,
+      "title": "[sanitized full LinkedIn article title]",
+      "updatedUtc": 1787212800,
+      "url": "https://www.linkedin.com/pulse/sanitized-linkedin-article-slug"
+    }
+  },
+  "provider": "AnyAPI",
+  "costUsd": 0.00543,
+  "items": 1,
+  "replayed": false,
+  "resultId": "sanitized-article-result-id"
+}
