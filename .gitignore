@@ -3,8 +3,10 @@ dist/
 
 # Local credentials and runtime state
 anyapi-key.txt
+anyapi-key.bin
 seen-posts.json
 signal-debug.log
+signal-debug.log.1
 anyapi-last-response-*.json
 diagnostic-fixtures/
 log.txt

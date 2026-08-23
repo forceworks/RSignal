@@ -174,7 +174,7 @@ export function normalizeAiResult(value) {
 }
 
 export class CodexService extends EventEmitter {
-  constructor({ dataDir, version = '0.0.0', binaryPath, spawnProcess = spawn } = {}) {
+  constructor({ dataDir, version = '0.0.0', binaryPath, spawnProcess = spawn, maxQueuedJobs = 8 } = {}) {
     super();
     this.dataDir = dataDir;
     this.version = version;
@@ -190,6 +190,8 @@ export class CodexService extends EventEmitter {
     this.stderr = '';
     this.cache = null;
     this.analysisQueue = Promise.resolve();
+    this.maxQueuedJobs = Math.max(1, Number(maxQueuedJobs) || 8);
+    this.queuedAnalysisJobs = 0;
   }
 
   async prepareHome() {
@@ -345,10 +347,20 @@ export class CodexService extends EventEmitter {
     await rename(temporary, this.cachePath);
   }
 
-  analyze(post, profile = '', instructions = '') {
-    const job = this.analysisQueue.then(() => this.runAnalysis(post, profile, instructions), () => this.runAnalysis(post, profile, instructions));
+  enqueueAnalysis(work) {
+    if (this.queuedAnalysisJobs >= this.maxQueuedJobs) {
+      const error = new Error('AI Assist is busy. Try again after the current requests finish.');
+      error.statusCode = 429;
+      return Promise.reject(error);
+    }
+    this.queuedAnalysisJobs++;
+    const job = this.analysisQueue.then(work, work).finally(() => { this.queuedAnalysisJobs--; });
     this.analysisQueue = job.catch(() => {});
     return job;
+  }
+
+  analyze(post, profile = '', instructions = '') {
+    return this.enqueueAnalysis(() => this.runAnalysis(post, profile, instructions));
   }
 
   async runAnalysis(post, profile, instructions) {
@@ -374,9 +386,7 @@ export class CodexService extends EventEmitter {
   }
 
   screen(posts, instructions, profile = '') {
-    const job = this.analysisQueue.then(() => this.runScreening(posts, instructions, profile), () => this.runScreening(posts, instructions, profile));
-    this.analysisQueue = job.catch(() => {});
-    return job;
+    return this.enqueueAnalysis(() => this.runScreening(posts, instructions, profile));
   }
 
   async runScreening(posts, instructions, profile) {

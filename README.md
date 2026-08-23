@@ -127,7 +127,7 @@ Release builds use Azure Artifact Signing with the existing Forceworks Public Tr
 
 ## AnyAPI configuration
 
-Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/). Paste it into Watchlists and select Save key. The key is stored locally in the Electron user-data directory and is never sent to the social platforms directly.
+Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/). Paste it into Watchlists and select Save key. The key is encrypted with Windows protected storage in the Electron user-data directory and is never sent to the social platforms directly.
 
 Follower counts load after scan results appear. RSignals deduplicates authors and caches profile counts locally for 24 hours to limit paid `twitter.profile` and `linkedin.profile` calls. Counts are omitted when a profile cannot be resolved.
 
@@ -161,10 +161,10 @@ Timestamp handling supports Unix seconds, Unix milliseconds, ISO dates, relative
 ## Local data and privacy
 
 - Watchlists, saved posts, hidden posts, scan settings, and notification settings use browser `localStorage`.
-- The AnyAPI key is stored in `anyapi-key.txt` under the Electron user-data directory.
+- The AnyAPI key is encrypted with Windows protected storage in `anyapi-key.bin` under the Electron user-data directory. Existing plaintext `anyapi-key.txt` values are migrated and removed on first use.
 - Seen-post history is stored in `seen-posts.json` and trimmed to recent history.
-- The server may write sanitized internal logs and last-response files for troubleshooting.
-- Raw response fixture capture is opt-in through `SIGNAL_DIAGNOSTIC_MODE=1` and sanitizes credentials and sensitive values.
+- The server may write sanitized, size-bounded internal logs and last-response files for troubleshooting.
+- Raw response fixture capture is opt-in through `SIGNAL_DIAGNOSTIC_MODE=1`, sanitizes credentials and sensitive values, and retains at most 20 fixtures.
 - AI engagement instructions and the user profile are stored in browser `localStorage`.
 - The optional Codex runtime stores OpenAI credentials in the Windows credential store; generated screening decisions and AI assessments are cached in `ai-analysis-cache.json` for up to 30 days.
 

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import http from 'node:http';
 import { analysisSchema, buildAiPrompt, buildScreeningPrompt, CodexService, normalizeAiResult, normalizeScreeningResult, safeError } from '../codex-service.js';
 import { createSignalServer } from '../server.js';
 
@@ -87,6 +88,17 @@ test('redacts credential-shaped values from Codex errors', () => {
   assert.match(message, /\[redacted\]/);
 });
 
+test('bounds the number of active and queued AI jobs', async () => {
+  const service = new CodexService({ dataDir: '.', maxQueuedJobs: 1 });
+  let release;
+  service.runAnalysis = () => new Promise(resolve => { release = resolve; });
+  const first = service.analyze({ text: 'First' });
+  await assert.rejects(service.analyze({ text: 'Second' }), error => error.statusCode === 429);
+  release(validResult);
+  assert.deepEqual(await first, validResult);
+  assert.equal(service.queuedAnalysisJobs, 0);
+});
+
 test('serves AI status, login, analysis, and stops the injected service', async t => {
   const calls = [];
   const aiService = {
@@ -98,18 +110,40 @@ test('serves AI status, login, analysis, and stops the injected service', async 
     screen: async (posts, instructions, profile) => { calls.push(['screen', posts.length, instructions, profile]); return { decisions: posts.map((_, index) => ({ index, show: index > 0, reason: index ? 'Keep' : 'Exclude' })), model: 'fixture-model', cachedCount: 0 }; },
     stop: async () => { calls.push(['stop']); }
   };
-  const server = createSignalServer({ aiService });
+  const capabilityToken = 'fixture-capability';
+  const server = createSignalServer({ aiService, capabilityToken });
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => { if (server.listening) server.close(); });
   const base = `http://127.0.0.1:${server.address().port}`;
+  const apiFetch = (path, options = {}) => fetch(`${base}${path}`, {
+    ...options,
+    headers: { 'x-rsignals-capability': capabilityToken, ...(options.headers || {}) }
+  });
 
-  assert.deepEqual(await fetch(`${base}/api/ai/status`).then(response => response.json()), { available: true, connected: false });
-  const keyResponse = await fetch(`${base}/api/ai/login/key`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: 'fixture-key' }) });
+  assert.equal((await fetch(`${base}/api/ai/status`)).status, 401);
+  assert.equal((await apiFetch('/api/ai/status', { headers: { origin: 'https://attacker.example' } })).status, 403);
+  assert.equal((await apiFetch('/api/ai/status', { headers: { 'sec-fetch-site': 'cross-site' } })).status, 403);
+  const wrongHostStatus = await new Promise((resolve, reject) => {
+    const request = http.request(`${base}/api/ai/status`, { headers: { host: 'attacker.example', 'x-rsignals-capability': capabilityToken } }, response => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    request.on('error', reject);
+    request.end();
+  });
+  assert.equal(wrongHostStatus, 403);
+  const simplePost = await apiFetch('/api/ai/analyze', { method: 'POST', headers: { 'content-type': 'text/plain' }, body: JSON.stringify({ post: { text: 'Fixture post' } }) });
+  assert.equal(simplePost.status, 415);
+  const oversizedPost = await apiFetch('/api/ai/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ post: { text: 'x'.repeat(1_000_050) } }) });
+  assert.equal(oversizedPost.status, 413);
+  assert.equal(calls.length, 0);
+  assert.deepEqual(await apiFetch('/api/ai/status').then(response => response.json()), { available: true, connected: false });
+  const keyResponse = await apiFetch('/api/ai/login/key', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: 'fixture-key' }) });
   assert.equal(keyResponse.status, 200);
-  const analysisResponse = await fetch(`${base}/api/ai/analyze`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ post: { text: 'Fixture post' }, profile: 'Fixture profile', instructions: 'Fixture instructions' }) });
+  const analysisResponse = await apiFetch('/api/ai/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ post: { text: 'Fixture post' }, profile: 'Fixture profile', instructions: 'Fixture instructions' }) });
   assert.deepEqual(await analysisResponse.json(), validResult);
-  const screeningResponse = await fetch(`${base}/api/ai/screen`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ posts: [{ text: 'Hiring post' }, { text: 'Question post' }], instructions: 'Avoid hiring content', profile: 'Fixture profile' }) });
+  const screeningResponse = await apiFetch('/api/ai/screen', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ posts: [{ text: 'Hiring post' }, { text: 'Question post' }], instructions: 'Avoid hiring content', profile: 'Fixture profile' }) });
   assert.deepEqual((await screeningResponse.json()).decisions, [{ index: 0, show: false, reason: 'Exclude' }, { index: 1, show: true, reason: 'Keep' }]);
   assert.deepEqual(calls.slice(0, 3), [['key', 'fixture-key'], ['analyze', 'Fixture post', 'Fixture profile', 'Fixture instructions'], ['screen', 2, 'Avoid hiring content', 'Fixture profile']]);
   server.close();

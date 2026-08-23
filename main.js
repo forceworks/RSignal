@@ -1,10 +1,13 @@
-import { app, BrowserWindow, ipcMain, Menu, Notification, shell, Tray, nativeImage, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, Notification, shell, Tray, nativeImage, dialog, safeStorage } from 'electron';
+import { randomBytes } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startSignalServer } from './server.js';
+import { createProtectedCredentialStore, startSignalServer } from './server.js';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = 31877;
+const appOrigin = `http://127.0.0.1:${port}`;
+const apiCapability = randomBytes(32).toString('base64url');
 const appUserModelId = 'com.signal.scanner';
 const toastActivatorClsid = '{86609B8D-0E0C-4A2B-9038-63F71A196E23}';
 let mainWindow;
@@ -80,13 +83,24 @@ function createWindow() {
     if (canOpenExternal(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
-  mainWindow.loadURL(`http://127.0.0.1:${port}`);
+  mainWindow.webContents.on('will-navigate', (event, value) => {
+    try { if (new URL(value).origin === appOrigin) return; } catch {}
+    event.preventDefault();
+    if (canOpenExternal(value)) void shell.openExternal(value);
+  });
+  mainWindow.loadURL(appOrigin);
   mainWindow.on('close', event => {
     if (!quitting) {
       event.preventDefault();
       mainWindow.hide();
     }
   });
+}
+
+function isTrustedRenderer(event) {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+  try { return new URL(event.senderFrame?.url || '').origin === appOrigin; }
+  catch { return false; }
 }
 
 function createTray() {
@@ -143,14 +157,24 @@ ipcMain.handle('set-startup', (_event, enabled) => {
   return app.getLoginItemSettings().openAtLogin;
 });
 ipcMain.handle('get-startup', () => app.getLoginItemSettings().openAtLogin);
+ipcMain.handle('get-api-capability', event => {
+  if (!isTrustedRenderer(event)) throw new Error('Untrusted renderer.');
+  return apiCapability;
+});
 
 app.setAppUserModelId(appUserModelId);
 if (process.platform === 'win32' && typeof app.setToastActivatorCLSID === 'function') app.setToastActivatorCLSID(toastActivatorClsid);
 app.whenReady().then(async () => {
   process.env.SIGNAL_DATA_DIR = app.getPath('userData');
   try {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows protected credential storage is unavailable.');
+    const credentialStore = createProtectedCredentialStore({
+      dataDir: process.env.SIGNAL_DATA_DIR,
+      protect: value => safeStorage.encryptString(value),
+      unprotect: value => safeStorage.decryptString(value)
+    });
     registerWindowsNotifications();
-    embeddedServer = await startSignalServer({ port });
+    embeddedServer = await startSignalServer({ port, capabilityToken: apiCapability, credentialStore });
     createWindow();
     createTray();
   } catch (error) {

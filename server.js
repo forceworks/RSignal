@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { readFile, writeFile, appendFile, rename, mkdir } from 'node:fs/promises';
+import { timingSafeEqual } from 'node:crypto';
+import { readFile, writeFile, appendFile, rename, mkdir, readdir, rm, stat, unlink } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CodexService, safeError as safeCodexError } from './codex-service.js';
@@ -11,7 +12,50 @@ function getDataDir() { return process.env.SIGNAL_DATA_DIR || root; }
 const port = Number(process.env.PORT || 3000);
 const updateCheckMaxAgeMs = 24 * 60 * 60 * 1000;
 const latestReleaseApi = 'https://api.github.com/repos/forceworks/RSignal/releases/latest';
+const requestBodyMaxBytes = 1_000_000;
+const anyApiResponseMaxBytes = 5 * 1024 * 1024;
+const anyApiTimeoutMs = 20_000;
+const anyApiItemMax = 1_000;
+const diagnosticLogMaxBytes = 2 * 1024 * 1024;
+const diagnosticFixtureMaxFiles = 20;
 let activeApiKey = '';
+
+export function createProtectedCredentialStore({ dataDir, protect, unprotect }) {
+  const protectedPath = join(dataDir, 'anyapi-key.bin');
+  const legacyPath = join(dataDir, 'anyapi-key.txt');
+  if (typeof protect !== 'function' || typeof unprotect !== 'function') throw new TypeError('Protected credential functions are required.');
+  const writeProtected = async value => {
+    const encrypted = Buffer.from(protect(String(value)));
+    const temporary = `${protectedPath}.tmp`;
+    await writeFile(temporary, encrypted);
+    await rename(temporary, protectedPath);
+  };
+  return {
+    async read() {
+      try { return String(unprotect(await readFile(protectedPath))).trim(); }
+      catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+      try {
+        const legacy = (await readFile(legacyPath, 'utf8')).trim();
+        if (!legacy) return '';
+        await writeProtected(legacy);
+        await unlink(legacyPath).catch(error => { if (error?.code !== 'ENOENT') throw error; });
+        return legacy;
+      } catch (error) {
+        if (error?.code === 'ENOENT') return '';
+        throw error;
+      }
+    },
+    async write(value) {
+      await writeProtected(value);
+      await unlink(legacyPath).catch(error => { if (error?.code !== 'ENOENT') throw error; });
+    },
+    async clear() {
+      await Promise.all([protectedPath, legacyPath].map(path => unlink(path).catch(error => { if (error?.code !== 'ENOENT') throw error; })));
+    }
+  };
+}
 
 export function compareVersions(left, right) {
   const parts = value => String(value || '').replace(/^v/i, '').split('.').slice(0, 3).map(part => Number.parseInt(part, 10));
@@ -60,13 +104,14 @@ export function createUpdateChecker({ fetchImpl = globalThis.fetch, currentVersi
   };
 }
 
-async function getAnyApiKey() {
+async function getAnyApiKey(credentialStore) {
   if (process.env.ANYAPI_KEY) {
     activeApiKey = process.env.ANYAPI_KEY.trim();
     return activeApiKey;
   }
-  try { activeApiKey = (await readFile(join(getDataDir(), 'anyapi-key.txt'), 'utf8')).trim(); return activeApiKey; }
-  catch { activeApiKey = ''; return ''; }
+  if (!credentialStore) { activeApiKey = ''; return ''; }
+  activeApiKey = String(await credentialStore.read() || '').trim();
+  return activeApiKey;
 }
 
 function redactString(value, secret = activeApiKey) {
@@ -95,7 +140,44 @@ function diagnosticRequestBody(body,redact=false) {
 
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml' };
 function sendJson(res,status,body){ res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'}); res.end(JSON.stringify(body)); }
-function collect(req){ return new Promise((resolve,reject)=>{ let data=''; req.on('data',c=>{ data+=c; if(data.length>1_000_000) reject(new Error('Request too large')); }); req.on('end',()=>resolve(data)); req.on('error',reject); }); }
+function equalCapability(left,right){
+  const a=Buffer.from(String(left||'')),b=Buffer.from(String(right||''));
+  return a.length>0&&a.length===b.length&&timingSafeEqual(a,b);
+}
+function authorizeApiRequest(req,res,capabilityToken){
+  const expectedHost=`127.0.0.1:${req.socket.localPort}`;
+  if(String(req.headers.host||'').toLowerCase()!==expectedHost) { sendJson(res,403,{error:'Forbidden'}); return false; }
+  const origin=String(req.headers.origin||'');
+  if(origin&&origin!==`http://${expectedHost}`) { sendJson(res,403,{error:'Forbidden'}); return false; }
+  const fetchSite=String(req.headers['sec-fetch-site']||'').toLowerCase();
+  if(fetchSite&&!['same-origin','none'].includes(fetchSite)) { sendJson(res,403,{error:'Forbidden'}); return false; }
+  if(!equalCapability(req.headers['x-rsignals-capability'],capabilityToken)) { sendJson(res,401,{error:'Unauthorized'}); return false; }
+  return true;
+}
+const jsonApiRoutes=new Set(['/api/ai/login/key','/api/ai/analyze','/api/ai/screen','/api/search','/api/followers','/api/linkedin/article','/api/key']);
+function requireJsonRequest(req,res,pathname){
+  if(!['POST','PUT','PATCH'].includes(req.method)||!jsonApiRoutes.has(pathname)) return true;
+  if(String(req.headers['content-type']||'').split(';',1)[0].trim().toLowerCase()==='application/json') return true;
+  sendJson(res,415,{error:'Content-Type must be application/json.'}); return false;
+}
+export function collect(req,maxBytes=requestBodyMaxBytes){
+  return new Promise((resolve,reject)=>{
+    let settled=false,total=0; const chunks=[];
+    const cleanup=()=>{req.off('data',onData);req.off('end',onEnd);req.off('error',onError);};
+    const onError=error=>{if(settled){cleanup();return;}settled=true;cleanup();reject(error);};
+    const onEnd=()=>{if(settled){cleanup();return;}settled=true;cleanup();resolve(Buffer.concat(chunks,total).toString('utf8'));};
+    const onData=chunk=>{
+      if(settled)return;
+      const buffer=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
+      if(total+buffer.length>maxBytes){
+        settled=true;total=0;chunks.length=0;req.resume();
+        const error=new Error('Request too large');error.statusCode=413;reject(error);return;
+      }
+      total+=buffer.length;chunks.push(buffer);
+    };
+    req.on('data',onData);req.on('end',onEnd);req.on('error',onError);
+  });
+}
 function aiErrorStatus(error){ if(Number(error?.statusCode))return Number(error.statusCode); const message=String(error?.message||''); return /usage.?limit|rate.?limit/i.test(message)?429:/unavailable|incomplete|not running|stopped/i.test(message)?503:500; }
 
 function pickArray(value) {
@@ -589,12 +671,55 @@ async function enrichFollowerProfiles(authors,key){
   return {profiles:profiles.map(({body,sku,cacheKey,...profile})=>profile),costUsd,lookups:pending.length,failures};
 }
 
+let diagnosticLogQueue=Promise.resolve();
+async function appendDiagnosticLine(line){
+  const target=join(getDataDir(),'signal-debug.log'),backup=`${target}.1`,bytes=Buffer.byteLength(line);
+  diagnosticLogQueue=diagnosticLogQueue.catch(()=>{}).then(async()=>{
+    const size=await stat(target).then(value=>value.size).catch(error=>error?.code==='ENOENT'?0:Promise.reject(error));
+    if(size+bytes>diagnosticLogMaxBytes){
+      await rm(backup,{force:true});
+      await rename(target,backup).catch(error=>{if(error?.code!=='ENOENT')throw error;});
+    }
+    await appendFile(target,line,'utf8');
+  });
+  return diagnosticLogQueue;
+}
 async function logDiagnostic(event, data={}) {
   try {
     const safe = sanitize(data);
     const line = JSON.stringify({at:new Date().toISOString(),event,...safe})+'\n';
-    await appendFile(join(getDataDir(),'signal-debug.log'), line, 'utf8');
+    await appendDiagnosticLine(line);
   } catch {}
+}
+
+export async function readResponseTextBounded(response,maxBytes=anyApiResponseMaxBytes){
+  if(!response.body) return '';
+  const reader=response.body.getReader(); const chunks=[]; let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      const chunk=Buffer.from(value); total+=chunk.length;
+      if(total>maxBytes){
+        const error=new Error('AnyAPI response exceeded the allowed size.'); error.status=502; throw error;
+      }
+      chunks.push(chunk);
+    }
+  }catch(error){ try{await reader.cancel();}catch{} throw error; }
+  return Buffer.concat(chunks,total).toString('utf8');
+}
+
+export function validateJsonComplexity(value,{maxDepth=40,maxNodes=50_000}={}){
+  const pending=[{value,depth:0}]; let nodes=0;
+  while(pending.length){
+    const current=pending.pop(); nodes++;
+    if(nodes>maxNodes||current.depth>maxDepth){
+      const error=new Error('AnyAPI response was too complex to process.'); error.status=502; throw error;
+    }
+    if(current.value&&typeof current.value==='object'){
+      for(const child of Object.values(current.value)) pending.push({value:child,depth:current.depth+1});
+    }
+  }
+  return value;
 }
 
 function dateRange(posts){
@@ -612,13 +737,13 @@ async function callAnyApi(sku,key,bodies,context={}){
     await logDiagnostic('anyapi.request',{...logContext,sku,attempt,body:diagnosticBody});
     let response;
     try {
-      response=await fetch(`https://api.getanyapi.com/v1/run/${encodeURIComponent(sku)}`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body)});
+      response=await fetch(`https://api.getanyapi.com/v1/run/${encodeURIComponent(sku)}`,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(anyApiTimeoutMs)});
     } catch (error) {
       await logDiagnostic('anyapi.network_error',{...logContext,sku,attempt,message:safeErrorMessage(error)});
       throw error;
     }
-    const text=await response.text();
-    let payload={}; try{payload=text?JSON.parse(text):{};}catch{payload={raw:text.slice(0,2000)};}
+    const text=await readResponseTextBounded(response);
+    let payload={}; try{payload=text?validateJsonComplexity(JSON.parse(text)):{};}catch(error){if(Number(error?.status)===502)throw error;payload={raw:text.slice(0,2000)};}
     lastPayload=payload; lastStatus=response.status;
     await logDiagnostic('anyapi.response',{...logContext,sku,attempt,status:response.status,ok:response.ok,durationMs:Date.now()-started,costUsd:Number(payload.costUsd||0),items:Number(payload.items||0),topLevelKeys:Object.keys(payload||{}),outputKeys:payload?.output&&typeof payload.output==='object'?Object.keys(payload.output):[]});
     if(response.ok) return {payload,response,status:response.status,requestBody:body,durationMs:Date.now()-started};
@@ -639,11 +764,12 @@ async function saveAnyApiResponse(platform, payload) {
     await mkdir(fixtureDir, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     await writeFile(join(fixtureDir, `${stamp}-${platform}.json`), JSON.stringify(safePayload, null, 2), 'utf8');
+    const fixtures=(await readdir(fixtureDir,{withFileTypes:true})).filter(entry=>entry.isFile()&&entry.name.endsWith('.json')).map(entry=>entry.name).sort().reverse();
+    await Promise.all(fixtures.slice(diagnosticFixtureMaxFiles).map(name=>rm(join(fixtureDir,name),{force:true})));
   } catch {}
 }
 
-async function runSearch(platform, topic, limit, maxAgeHours){
-  const key=await getAnyApiKey();
+async function runSearch(platform, topic, limit, maxAgeHours, key){
   const query=sourceQuery(platform, topic);
   if(!key){
     const posts=demoPosts(platform,topic,limit);
@@ -654,12 +780,12 @@ async function runSearch(platform, topic, limit, maxAgeHours){
   const {payload,status,requestBody,durationMs}=await callAnyApi(sku,key,bodies,{platform,query:topic,sourceQuery:query});
   await saveAnyApiResponse(platform, payload);
   const normalizer=sourceNormalizer(platform);
-  const sourceItems=extractSourceItems(platform,payload);
+  const sourceItems=extractSourceItems(platform,payload).slice(0,anyApiItemMax);
   const nonComments=sourceItems.filter(item=>!isCommentRecord(item,platform));
   const commentFiltered=sourceItems.length-nonComments.length;
   const nonReposts=nonComments.filter(item=>!isRepostRecord(item,platform));
   const repostFiltered=nonComments.length-nonReposts.length;
-  const normalizedPosts=nonReposts.map((item,i)=>normalizer(item,topic,i));
+  const normalizedPosts=nonReposts.slice(0,limit).map((item,i)=>normalizer(item,topic,i));
   const posts=normalizedPosts;
   const range=dateRange(posts);
   const firstRaw=sourceItems[0]&&typeof sourceItems[0]==='object'?Object.keys(sourceItems[0]).slice(0,30):[];
@@ -674,8 +800,12 @@ function demoPosts(platform,query,limit=12){
   return templates.slice(0,limit).map((t,i)=>{const id=`demo-${platform}-${i}`;const urls={x:`https://x.com/${t[1]}/status/${id}`,linkedin:`https://www.linkedin.com/feed/update/urn:li:activity:700000000000000000${i}/`,reddit:`https://www.reddit.com/r/technology/comments/${id}/`,youtube:`https://www.youtube.com/watch?v=${id}`,tiktok:`https://www.tiktok.com/@${t[1]}/video/${id}`,substack:`https://signal-demo.substack.com/p/${id}`};return {platform,id,query,author:{name:t[0],username:t[1],verified:i%3===0,followers:[18400,7200,31500,4900][i]},text:t[2],url:urls[platform]||urls.x,createdAt:new Date(now-[11,19,27,43][i]*60000).toISOString(),replies:t[3],likes:t[4],reposts:t[5],views:t[6]};});
 }
 
-export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const updateChecker=options.updateChecker||createUpdateChecker(); const server=http.createServer(async(req,res)=>{ try{
-  const url=new URL(req.url,`http://${req.headers.host}`);
+export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const updateChecker=options.updateChecker||createUpdateChecker(); const capabilityToken=String(options.capabilityToken||''); const credentialStore=options.credentialStore; const server=http.createServer(async(req,res)=>{ try{
+  const url=new URL(req.url,'http://127.0.0.1');
+  if(url.pathname.startsWith('/api/')){
+    if(!authorizeApiRequest(req,res,capabilityToken)) return;
+    if(!requireJsonRequest(req,res,url.pathname)) return;
+  }
   if(req.method==='GET'&&url.pathname==='/api/update') return sendJson(res,200,await updateChecker());
   if(req.method==='GET'&&url.pathname==='/api/ai/status') return sendJson(res,200,await aiService.status());
   if(req.method==='POST'&&url.pathname==='/api/ai/login/chatgpt'){
@@ -702,7 +832,8 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     if(!platforms.length) return sendJson(res,400,{error:'Select at least one source.'});
     const missingPlatform=platforms.find(platform=>!queriesByPlatform[platform]?.length);
     if(missingPlatform) return sendJson(res,400,{error:`Add at least one ${sourceLabel(missingPlatform)} watchlist entry.`});
-    const jobs=[]; for(const platform of platforms) for(const q of queriesByPlatform[platform]) jobs.push({platform,query:q,promise:runSearch(platform,q,limit,maxAgeHours)});
+    const key=await getAnyApiKey(credentialStore);
+    const jobs=[]; for(const platform of platforms) for(const q of queriesByPlatform[platform]) jobs.push({platform,query:q,promise:runSearch(platform,q,limit,maxAgeHours,key)});
     const settled=await Promise.allSettled(jobs.map(j=>j.promise));
     const failures=settled.map((r,i)=>r.status==='rejected'?`${sourceLabel(jobs[i].platform)} (${jobs[i].query}): ${r.reason?.message||String(r.reason)}`:null).filter(Boolean);
     const results=settled.filter(r=>r.status==='fulfilled').map(r=>r.value);
@@ -722,7 +853,7 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     const bump=(post,kind)=>{const k=`${post.platform}|||${post.query}`; rejectionByJob[k]??={missingDate:0,tooOld:0,alreadySeen:0,duplicates:0,new:0}; rejectionByJob[k][kind]++;};
     for(const post of all){ const key=postKey(post); const legacyKey=key.startsWith('x:')?key.slice(2):null; const postedAt=post.createdAt?new Date(post.createdAt).getTime():NaN; if(!Number.isFinite(postedAt)){missingDate++;bump(post,'missingDate');continue;} const ageHours=Math.max(0,(now-postedAt)/3_600_000); if(ageHours>maxAgeHours){tooOld++;bump(post,'tooOld');continue;} if(history[key]||(legacyKey&&history[legacyKey])){alreadySeen++;bump(post,'alreadySeen');continue;} posts.push(post); bump(post,'new'); history[key]=now; }
     for(const d of diagnostics){ const k=`${d.platform}|||${d.query}`; Object.assign(d,rejectionByJob[k]||{missingDate:0,tooOld:0,alreadySeen:0,duplicates:0,new:0}); }
-    const articleEnrichment=posts.some(isXArticleCandidate)?await enrichXArticles(posts,await getAnyApiKey()):{attempted:0,found:0,costUsd:0};
+    const articleEnrichment=posts.some(isXArticleCandidate)&&key?await enrichXArticles(posts,key):{attempted:0,found:0,costUsd:0};
     await writeSeenPosts(history); posts.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
     const byPlatform={}; for(const p of platforms) byPlatform[p]={fetched:all.filter(x=>x.platform===p).length,new:posts.filter(x=>x.platform===p).length,costUsd:results.filter(r=>r.platform===p).reduce((s,r)=>s+r.costUsd,0)+(p==='x'?articleEnrichment.costUsd:0)};
     const responseBody={demo:results.every(r=>r.demo),posts,costUsd:results.reduce((s,r)=>s+r.costUsd,0)+articleEnrichment.costUsd,stats:{fetched:all.length,duplicates,alreadySeen,tooOld,missingDate,maxAgeHours,byPlatform,failures,diagnostics,xArticles:articleEnrichment}};
@@ -733,7 +864,7 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     const body=JSON.parse((await collect(req))||'{}');
     const authors=Array.isArray(body.authors)?body.authors.slice(0,100).filter(author=>author&&['x','linkedin'].includes(String(author.platform).toLowerCase())):[];
     if(!authors.length) return sendJson(res,200,{profiles:[],costUsd:0,lookups:0,failures:0});
-    const key=await getAnyApiKey();
+    const key=await getAnyApiKey(credentialStore);
     if(!key) return sendJson(res,200,{profiles:[],costUsd:0,lookups:0,failures:0});
     return sendJson(res,200,await enrichFollowerProfiles(authors,key));
   }
@@ -741,17 +872,17 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     const body=JSON.parse((await collect(req))||'{}');
     const articleUrl=canonicalLinkedInArticleUrl(body.url);
     if(!articleUrl) return sendJson(res,400,{error:'Choose a valid public LinkedIn article URL.'});
-    const key=await getAnyApiKey();
+    const key=await getAnyApiKey(credentialStore);
     if(!key) return sendJson(res,400,{error:'Add your AnyAPI key in Settings before loading an article.'});
     try{return sendJson(res,200,await getLinkedInArticle(articleUrl,key));}
     catch(error){return sendJson(res,Number(error?.status)||502,{error:safeErrorMessage(error)});}
   }
-  if(req.method==='POST'&&url.pathname==='/api/key'){ const body=JSON.parse((await collect(req))||'{}'); const key=String(body.key||'').trim().replace(/^Bearer\s+/i,''); if(!key) return sendJson(res,400,{error:'Enter an AnyAPI key.'}); await writeFile(join(getDataDir(),'anyapi-key.txt'),key+'\n','utf8'); return sendJson(res,200,{configured:true}); }
-  if(req.method==='DELETE'&&url.pathname==='/api/key'){ await writeFile(join(getDataDir(),'anyapi-key.txt'),'','utf8'); return sendJson(res,200,{configured:false}); }
-  if(req.method==='GET'&&url.pathname==='/api/status'){ return sendJson(res,200,{configured:Boolean(await getAnyApiKey()),version:appVersion,skus:Object.fromEntries(['x','linkedin','reddit','youtube','tiktok','substack'].map(platform=>[platform,sourceSku(platform)]))}); }
+  if(req.method==='POST'&&url.pathname==='/api/key'){ if(!credentialStore)return sendJson(res,503,{error:'Protected credential storage is unavailable.'}); const body=JSON.parse((await collect(req))||'{}'); const key=String(body.key||'').trim().replace(/^Bearer\s+/i,''); if(!key) return sendJson(res,400,{error:'Enter an AnyAPI key.'}); await credentialStore.write(key); activeApiKey=key; return sendJson(res,200,{configured:true}); }
+  if(req.method==='DELETE'&&url.pathname==='/api/key'){ if(!credentialStore)return sendJson(res,503,{error:'Protected credential storage is unavailable.'}); await credentialStore.clear(); activeApiKey=''; return sendJson(res,200,{configured:false}); }
+  if(req.method==='GET'&&url.pathname==='/api/status'){ return sendJson(res,200,{configured:Boolean(await getAnyApiKey(credentialStore)),version:appVersion,skus:Object.fromEntries(['x','linkedin','reddit','youtube','tiktok','substack'].map(platform=>[platform,sourceSku(platform)]))}); }
   if(req.method==='GET'&&url.pathname==='/api/log'){ try{ const text=await readFile(join(getDataDir(),'signal-debug.log'),'utf8'); return sendJson(res,200,{log:text.split('\n').filter(Boolean).slice(-300).join('\n')}); }catch{return sendJson(res,200,{log:''});} }
   const requested=url.pathname==='/'?'/index.html':url.pathname; const safe=normalize(requested).replace(/^(\.\.(\/|\\|$))+/,''); const path=join(publicDir,safe); if(!path.startsWith(publicDir)) return sendJson(res,403,{error:'Forbidden'}); const file=await readFile(path); res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream'}); res.end(file);
-}catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,500,{error:error.message||'Unexpected error'}); }}); server.on('close',()=>{void aiService.stop?.();}); return server; }
+}catch(error){ if(error.code==='ENOENT') return sendJson(res,404,{error:'Not found'}); sendJson(res,Number(error?.statusCode)||Number(error?.status)||500,{error:safeErrorMessage(error)||'Unexpected error'}); }}); server.requestTimeout=60_000; server.headersTimeout=10_000; server.keepAliveTimeout=5_000; server.on('close',()=>{void aiService.stop?.();}); return server; }
 export async function startSignalServer(options={}){ const listenPort=Number(options.port||port); const server=createSignalServer(options); await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(listenPort,'127.0.0.1',resolve);}); return server; }
 export { canonicalLinkedInArticleUrl, canonicalXPostUrl, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, isXArticleCandidate, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXArticle, normalizeXPost, normalizeYouTubeVideo, parsePostDate, postKey, sourceQuery, sourceRequest };
 if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){ startSignalServer().then(()=>console.log(`RSignals running at http://127.0.0.1:${port}`)).catch(e=>{console.error(e);process.exitCode=1;}); }

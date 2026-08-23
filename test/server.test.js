@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { canonicalLinkedInArticleUrl, canonicalXPostUrl, compareVersions, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, isXArticleCandidate, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXArticle, normalizeXPost, normalizeYouTubeVideo, parsePostDate, releaseUpdateStatus, sourceQuery, sourceRequest } from '../server.js';
+import { PassThrough } from 'node:stream';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { canonicalLinkedInArticleUrl, canonicalXPostUrl, collect, compareVersions, createProtectedCredentialStore, createUpdateChecker, diagnosticRequestBody, extractFollowerCount, extractLinkedInPosts, followerLookupRequest, isCommentRecord, isRepostRecord, isXArticleCandidate, normalizeLinkedInArticle, normalizeLinkedInPost, normalizeRedditPost, normalizeSubstackPost, normalizeTikTokVideo, normalizeXArticle, normalizeXPost, normalizeYouTubeVideo, parsePostDate, readResponseTextBounded, releaseUpdateStatus, sourceQuery, sourceRequest, validateJsonComplexity } from '../server.js';
 
 const linkedinFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts.createdUtc.json', import.meta.url), 'utf8'));
 const linkedinFullFixture = JSON.parse(await readFile(new URL('./fixtures/linkedin.search_posts_full.sanitized.json', import.meta.url), 'utf8'));
@@ -14,6 +17,34 @@ const redditFixture = JSON.parse(await readFile(new URL('./fixtures/reddit.searc
 const youtubeFixture = JSON.parse(await readFile(new URL('./fixtures/youtube.search.sanitized.json', import.meta.url), 'utf8'));
 const tiktokFixture = JSON.parse(await readFile(new URL('./fixtures/tiktok.hashtag_videos.sanitized.json', import.meta.url), 'utf8'));
 const substackFixture = JSON.parse(await readFile(new URL('./fixtures/substack.posts.sanitized.json', import.meta.url), 'utf8'));
+
+test('rejects oversized request bodies by bytes before retaining them', async () => {
+  const request = new PassThrough();
+  const body = collect(request, 4);
+  request.end('ééé');
+  await assert.rejects(body, error => error.statusCode === 413);
+});
+
+test('migrates plaintext AnyAPI credentials into protected storage', async t => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'rsignals-credentials-'));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const transform = value => Buffer.from(value).map(byte => byte ^ 0xaa);
+  const store = createProtectedCredentialStore({ dataDir, protect: transform, unprotect: buffer => transform(buffer).toString('utf8') });
+  await writeFile(join(dataDir, 'anyapi-key.txt'), 'fixture-secret\n', 'utf8');
+  assert.equal(await store.read(), 'fixture-secret');
+  const protectedValue = await readFile(join(dataDir, 'anyapi-key.bin'));
+  assert.doesNotMatch(protectedValue.toString('utf8'), /fixture-secret/);
+  await assert.rejects(readFile(join(dataDir, 'anyapi-key.txt')), error => error.code === 'ENOENT');
+  await store.clear();
+  assert.equal(await store.read(), '');
+});
+
+test('bounds AnyAPI response bytes and parsed JSON complexity', async () => {
+  assert.equal(await readResponseTextBounded(new Response('okay'), 4), 'okay');
+  await assert.rejects(readResponseTextBounded(new Response('12345'), 4), error => error.status === 502);
+  assert.deepEqual(validateJsonComplexity({ one: { two: true } }, { maxDepth: 2 }), { one: { two: true } });
+  assert.throws(() => validateJsonComplexity({ one: { two: { three: true } } }, { maxDepth: 2 }), error => error.status === 502);
+});
 
 test('detects and caches newer public GitHub releases', async () => {
   let calls = 0;
