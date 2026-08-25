@@ -22,7 +22,12 @@
         <div class="status"><i id="statusDot"></i><span id="statusText">Checking…</span></div>
         <p>Your social credentials are never used. Public searches run through AnyAPI.</p>
       </div>
-      <div class="rail-footer" aria-label="Application version and Product Hunt review">
+      <div class="rail-footer" aria-label="Application updates, version, and Product Hunt review">
+        <section id="updateBanner" class="rail-update hidden" aria-live="polite">
+          <span>Update available</span>
+          <strong>RSignals <b id="updateVersion"></b></strong>
+          <a id="downloadUpdate" href="#" target="_blank" rel="noopener noreferrer">Download update</a>
+        </section>
         <span id="appVersion">RSignals v—</span>
         <a class="product-hunt-badge" href="https://www.producthunt.com/products/rsignal/reviews/new?utm_source=badge-product_review&amp;utm_medium=badge&amp;utm_source=badge-rsignal" target="_blank" rel="noopener noreferrer"><img src="https://api.producthunt.com/widgets/embed-image/v1/product_review.svg?product_id=1295074&amp;theme=neutral" alt="RSignal - AI-powered social scanning | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
       </div>
@@ -33,11 +38,6 @@
         <div><span class="eyebrow">Personal intelligence</span><h1>Worth joining now</h1><p>Fresh conversations where you have something useful to add.</p></div>
         <button id="scanButton" class="primary">Scan now</button>
       </header>
-
-      <section id="updateBanner" class="update-banner hidden" aria-live="polite">
-        <div class="update-banner-copy"><span>Update available</span><strong>RSignals <b id="updateVersion"></b> is ready</strong><p>Download the latest signed Windows ZIP when it is convenient.</p></div>
-        <div class="update-banner-actions"><a id="downloadUpdate" class="primary" href="#" target="_blank" rel="noopener noreferrer">Download update</a><button id="snoozeUpdate" class="secondary" type="button">Remind me later</button></div>
-      </section>
 
       <section id="feedView">
         <div class="toolbar">

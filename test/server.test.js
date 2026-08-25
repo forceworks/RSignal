@@ -69,6 +69,8 @@ test('detects and caches newer public GitHub releases', async () => {
   assert.equal(calls, 1);
   assert.equal(compareVersions('1.10.0', '1.9.9'), 1);
   assert.equal(releaseUpdateStatus({ tag_name: 'v1.5.2' }, '1.5.2').updateAvailable, false);
+  assert.equal(releaseUpdateStatus({ tag_name: 'v1.6.0', draft: true }, '1.5.2').updateAvailable, false);
+  assert.equal(releaseUpdateStatus({ tag_name: 'v1.6.0', prerelease: true }, '1.5.2').updateAvailable, false);
 });
 
 test('parses the real LinkedIn response shape and createdUtc Unix seconds', () => {

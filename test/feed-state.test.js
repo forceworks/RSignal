@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeScanPosts, postIdentity } from '../public/feed-state.js';
+import { mergeScanPosts, normalizePostIdentity, postIdentity } from '../public/feed-state.js';
 
 function fixture(id, ageMinutes, extra = {}) {
   return {
@@ -47,4 +47,24 @@ test('expires opportunities as soon as they reach the freshness limit', () => {
     mergeScanPosts([justFresh, atLimit], [], { maxAgeHours: 3, now }).map(post => post.id),
     ['just-fresh']
   );
+});
+
+test('uses stable identities across provider URL variants and legacy hidden keys', () => {
+  const now = Date.UTC(2026, 7, 19, 12);
+  const xPost = fixture('1905545699552375179', 10, { url: 'https://x.com/first_handle/status/1905545699552375179?s=20#fragment' });
+  const xDuplicate = fixture('provider-specific-id', 10, { url: 'https://twitter.com/renamed_handle/status/1905545699552375179/' });
+  assert.equal(postIdentity(xPost), 'x:1905545699552375179');
+  assert.equal(postIdentity(xDuplicate), postIdentity(xPost));
+  assert.equal(normalizePostIdentity('x:https://twitter.com/old_handle/status/1905545699552375179?s=20'), postIdentity(xPost));
+  assert.deepEqual(mergeScanPosts([], [xPost, xDuplicate], { maxAgeHours: 3, now }).map(postIdentity), ['x:1905545699552375179']);
+  assert.deepEqual(mergeScanPosts([], [xDuplicate], {
+    maxAgeHours: 3,
+    hidden: ['x:https://x.com/old_handle/status/1905545699552375179?s=20'],
+    now
+  }), []);
+
+  const linkedInPost = fixture('7490772107048464384', 10, { platform: 'linkedin', url: 'https://www.linkedin.com/posts/example_activity-7490772107048464384-test?trackingId=one' });
+  const linkedInDuplicate = { ...linkedInPost, id: 'different-provider-id', url: 'https://linkedin.com/feed/update/urn:li:activity:7490772107048464384/' };
+  assert.equal(postIdentity(linkedInPost), 'linkedin:7490772107048464384');
+  assert.equal(postIdentity(linkedInDuplicate), postIdentity(linkedInPost));
 });

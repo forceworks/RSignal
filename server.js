@@ -66,6 +66,7 @@ export function compareVersions(left, right) {
 }
 
 export function releaseUpdateStatus(release, currentVersion = appVersion, checkedAt = new Date().toISOString()) {
+  if (release?.draft || release?.prerelease) return { checked: true, checkedAt, currentVersion, updateAvailable: false };
   const tag = String(release?.tag_name || '').trim();
   const match = tag.match(/^v?(\d+\.\d+\.\d+)$/i);
   if (!match) throw new Error('GitHub returned an invalid release version.');
