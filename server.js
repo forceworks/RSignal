@@ -24,6 +24,12 @@ export function createProtectedCredentialStore({ dataDir, protect, unprotect }) 
   const protectedPath = join(dataDir, 'anyapi-key.bin');
   const legacyPath = join(dataDir, 'anyapi-key.txt');
   if (typeof protect !== 'function' || typeof unprotect !== 'function') throw new TypeError('Protected credential functions are required.');
+  let operationQueue = Promise.resolve();
+  const runExclusive = operation => {
+    const result = operationQueue.then(operation, operation);
+    operationQueue = result.then(() => undefined, () => undefined);
+    return result;
+  };
   const writeProtected = async value => {
     const encrypted = Buffer.from(protect(String(value)));
     const temporary = `${protectedPath}.tmp`;
@@ -31,7 +37,7 @@ export function createProtectedCredentialStore({ dataDir, protect, unprotect }) 
     await rename(temporary, protectedPath);
   };
   return {
-    async read() {
+    read() { return runExclusive(async () => {
       try { return String(unprotect(await readFile(protectedPath))).trim(); }
       catch (error) {
         if (error?.code !== 'ENOENT') throw error;
@@ -46,14 +52,14 @@ export function createProtectedCredentialStore({ dataDir, protect, unprotect }) 
         if (error?.code === 'ENOENT') return '';
         throw error;
       }
-    },
-    async write(value) {
+    }); },
+    write(value) { return runExclusive(async () => {
       await writeProtected(value);
       await unlink(legacyPath).catch(error => { if (error?.code !== 'ENOENT') throw error; });
-    },
-    async clear() {
+    }); },
+    clear() { return runExclusive(async () => {
       await Promise.all([protectedPath, legacyPath].map(path => unlink(path).catch(error => { if (error?.code !== 'ENOENT') throw error; })));
-    }
+    }); }
   };
 }
 

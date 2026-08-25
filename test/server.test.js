@@ -31,7 +31,7 @@ test('migrates plaintext AnyAPI credentials into protected storage', async t => 
   const transform = value => Buffer.from(value).map(byte => byte ^ 0xaa);
   const store = createProtectedCredentialStore({ dataDir, protect: transform, unprotect: buffer => transform(buffer).toString('utf8') });
   await writeFile(join(dataDir, 'anyapi-key.txt'), 'fixture-secret\n', 'utf8');
-  assert.equal(await store.read(), 'fixture-secret');
+  assert.deepEqual(await Promise.all([store.read(), store.read(), store.read()]), ['fixture-secret', 'fixture-secret', 'fixture-secret']);
   const protectedValue = await readFile(join(dataDir, 'anyapi-key.bin'));
   assert.doesNotMatch(protectedValue.toString('utf8'), /fixture-secret/);
   await assert.rejects(readFile(join(dataDir, 'anyapi-key.txt')), error => error.code === 'ENOENT');
