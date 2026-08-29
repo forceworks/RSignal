@@ -162,27 +162,35 @@ ipcMain.handle('get-api-capability', event => {
   return apiCapability;
 });
 
-app.setAppUserModelId(appUserModelId);
-if (process.platform === 'win32' && typeof app.setToastActivatorCLSID === 'function') app.setToastActivatorCLSID(toastActivatorClsid);
-app.whenReady().then(async () => {
-  process.env.SIGNAL_DATA_DIR = app.getPath('userData');
-  try {
-    if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows protected credential storage is unavailable.');
-    const credentialStore = createProtectedCredentialStore({
-      dataDir: process.env.SIGNAL_DATA_DIR,
-      protect: value => safeStorage.encryptString(value),
-      unprotect: value => safeStorage.decryptString(value)
-    });
-    registerWindowsNotifications();
-    embeddedServer = await startSignalServer({ port, capabilityToken: apiCapability, credentialStore });
-    createWindow();
-    createTray();
-  } catch (error) {
-    dialog.showErrorBox('RSignals could not start', error?.message || String(error));
-    quitting = true;
-    app.quit();
-  }
-});
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  quitting = true;
+  app.quit();
+} else {
+  app.on('second-instance', showWindow);
+  app.setAppUserModelId(appUserModelId);
+  if (process.platform === 'win32' && typeof app.setToastActivatorCLSID === 'function') app.setToastActivatorCLSID(toastActivatorClsid);
+  app.whenReady().then(async () => {
+    process.env.SIGNAL_DATA_DIR = app.getPath('userData');
+    try {
+      if (!safeStorage.isEncryptionAvailable()) throw new Error('Windows protected credential storage is unavailable.');
+      const credentialStore = createProtectedCredentialStore({
+        dataDir: process.env.SIGNAL_DATA_DIR,
+        protect: value => safeStorage.encryptString(value),
+        unprotect: value => safeStorage.decryptString(value)
+      });
+      registerWindowsNotifications();
+      embeddedServer = await startSignalServer({ port, capabilityToken: apiCapability, credentialStore });
+      createWindow();
+      createTray();
+    } catch (error) {
+      dialog.showErrorBox('RSignals could not start', error?.message || String(error));
+      quitting = true;
+      app.quit();
+    }
+  });
+}
 
 app.on('activate', showWindow);
 app.on('window-all-closed', event => event.preventDefault());
