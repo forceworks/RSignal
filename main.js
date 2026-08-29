@@ -188,5 +188,8 @@ app.on('activate', showWindow);
 app.on('window-all-closed', event => event.preventDefault());
 app.on('before-quit', () => {
   quitting = true;
-  if (embeddedServer) embeddedServer.close();
+  if (embeddedServer) {
+    embeddedServer.close();
+    embeddedServer.closeAllConnections?.();
+  }
 });

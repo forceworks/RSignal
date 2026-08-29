@@ -13,6 +13,7 @@ const screeningPromptVersion = 1;
 const cacheMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 const screeningBatchSize = 100;
 const replyStyles = ['helpful', 'curious', 'concise', 'contrarian'];
+const isolatedCodexArgs = ['--disable', 'plugins', '--disable', 'apps', '--disable', 'recommended_plugins', '--disable', 'remote_plugin'];
 const analysisSchema = {
   type: 'object',
   properties: {
@@ -76,6 +77,30 @@ export function resolveCodexBinary() {
   const candidate = join(dirname(packageJson), 'vendor', target[1], 'bin', target[2]);
   if (!existsSync(candidate)) throw new Error('The bundled OpenAI Codex runtime is incomplete. Reinstall RSignals.');
   return candidate;
+}
+
+async function terminateProcessTree(child) {
+  if (!child?.pid) return;
+  if (process.platform !== 'win32') {
+    try { child.kill(); } catch {}
+    return;
+  }
+  await new Promise(resolve => {
+    let settled = false;
+    const finish = () => { if (!settled) { settled = true; resolve(); } };
+    let killer;
+    try {
+      killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { windowsHide: true, stdio: 'ignore' });
+    } catch {
+      try { child.kill(); } catch {}
+      finish();
+      return;
+    }
+    killer.once('error', () => { try { child.kill(); } catch {}; finish(); });
+    killer.once('exit', finish);
+    const fallback = setTimeout(finish, 5_000);
+    fallback.unref?.();
+  });
 }
 
 export function buildAiPrompt(post, profile = '', instructions = '') {
@@ -174,23 +199,27 @@ export function normalizeAiResult(value) {
 }
 
 export class CodexService extends EventEmitter {
-  constructor({ dataDir, version = '0.0.0', binaryPath, spawnProcess = spawn, maxQueuedJobs = 8 } = {}) {
+  constructor({ dataDir, version = '0.0.0', binaryPath, spawnProcess = spawn, terminateProcess = terminateProcessTree, maxQueuedJobs = 8, requestTimeoutMs = 30_000 } = {}) {
     super();
     this.dataDir = dataDir;
     this.version = version;
     this.binaryPath = binaryPath;
     this.spawnProcess = spawnProcess;
+    this.terminateProcess = terminateProcess;
     this.codexHome = join(dataDir, 'codex-ai');
     this.workspaceDir = join(this.codexHome, 'workspace');
     this.cachePath = join(dataDir, 'ai-analysis-cache.json');
     this.process = null;
     this.starting = null;
+    this.recovering = null;
+    this.statusRequest = null;
     this.pending = new Map();
     this.nextId = 1;
     this.stderr = '';
     this.cache = null;
     this.analysisQueue = Promise.resolve();
     this.maxQueuedJobs = Math.max(1, Number(maxQueuedJobs) || 8);
+    this.requestTimeoutMs = Math.max(100, Number(requestTimeoutMs) || 30_000);
     this.queuedAnalysisJobs = 0;
   }
 
@@ -200,6 +229,7 @@ export class CodexService extends EventEmitter {
   }
 
   async start() {
+    if (this.recovering) await this.recovering;
     if (this.process) return;
     if (this.starting) return this.starting;
     this.starting = this.startProcess();
@@ -212,7 +242,7 @@ export class CodexService extends EventEmitter {
     const binary = this.binaryPath || resolveCodexBinary();
     const env = { ...process.env, CODEX_HOME: this.codexHome };
     for (const key of ['OPENAI_API_KEY', 'CODEX_API_KEY', 'CODEX_ACCESS_TOKEN']) delete env[key];
-    const child = this.spawnProcess(binary, ['app-server', '--listen', 'stdio://'], {
+    const child = this.spawnProcess(binary, ['app-server', '--listen', 'stdio://', ...isolatedCodexArgs], {
       env,
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']
@@ -222,8 +252,8 @@ export class CodexService extends EventEmitter {
     child.stderr?.on('data', chunk => { this.stderr = safeError(`${this.stderr}${chunk}`).slice(-2_000); });
     const lines = readline.createInterface({ input: child.stdout });
     lines.on('line', line => this.handleLine(line));
-    child.once('error', error => this.handleExit(error));
-    child.once('exit', code => this.handleExit(new Error(`OpenAI Codex stopped${code === null ? '' : ` (${code})`}.`)));
+    child.once('error', error => this.handleExit(error, child));
+    child.once('exit', code => this.handleExit(new Error(`OpenAI Codex stopped${code === null ? '' : ` (${code})`}.`), child));
     await this.request('initialize', {
       clientInfo: { name: 'rsignals', title: 'RSignals', version: this.version },
       capabilities: { optOutNotificationMethods: ['item/agentMessage/delta', 'item/reasoning/summaryTextDelta', 'item/reasoning/textDelta'] }
@@ -252,8 +282,8 @@ export class CodexService extends EventEmitter {
     if (message.method) this.emit('notification', message);
   }
 
-  handleExit(error) {
-    if (!this.process) return;
+  handleExit(error, child = this.process) {
+    if (!this.process || this.process !== child) return;
     this.process = null;
     const message = safeError(this.stderr || error);
     for (const pending of this.pending.values()) {
@@ -269,11 +299,17 @@ export class CodexService extends EventEmitter {
     this.process.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
-  request(method, params = {}, timeoutMs = 30_000) {
+  recoverAfterTimeout() {
+    if (!this.recovering) this.recovering = this.stop().finally(() => { this.recovering = null; });
+    return this.recovering;
+  }
+
+  request(method, params = {}, timeoutMs = this.requestTimeoutMs) {
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        void this.recoverAfterTimeout();
         reject(new Error(`OpenAI Codex timed out during ${method}.`));
       }, timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
@@ -286,7 +322,13 @@ export class CodexService extends EventEmitter {
     this.write({ method, params });
   }
 
-  async status() {
+  status() {
+    if (this.statusRequest) return this.statusRequest;
+    this.statusRequest = this.readStatus().finally(() => { this.statusRequest = null; });
+    return this.statusRequest;
+  }
+
+  async readStatus() {
     try {
       await this.start();
       const result = await this.request('account/read', { refreshToken: false });
@@ -505,9 +547,9 @@ export class CodexService extends EventEmitter {
 
   async stop() {
     const child = this.process;
-    if (!child || child.killed) return;
-    this.handleExit(new Error('OpenAI Codex stopped.'));
-    try { child.kill(); } catch {}
+    if (!child) return;
+    this.handleExit(new Error('OpenAI Codex stopped.'), child);
+    await this.terminateProcess(child);
   }
 }
 

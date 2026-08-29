@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { once } from 'node:events';
+import { EventEmitter, once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
 import http from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { analysisSchema, buildAiPrompt, buildScreeningPrompt, CodexService, normalizeAiResult, normalizeScreeningResult, safeError } from '../codex-service.js';
 import { createSignalServer } from '../server.js';
 
@@ -17,6 +21,35 @@ const validResult = {
     { style: 'contrarian', text: 'A custom workflow may add more maintenance than value if the standard process already covers the core need.' }
   ]
 };
+
+function createCodexHarness() {
+  const calls = [];
+  const spawnCalls = [];
+  const terminated = [];
+  let hangAccountRead = false;
+  let nextPid = 10_000;
+  const spawnProcess = (binary, args, options) => {
+    spawnCalls.push({ binary, args, options });
+    const child = new EventEmitter();
+    child.pid = nextPid++;
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.stdin = new PassThrough();
+    child.stdin.on('data', chunk => {
+      for (const line of String(chunk).split('\n').filter(Boolean)) {
+        const message = JSON.parse(line);
+        calls.push(message);
+        if (message.method === 'account/read' && hangAccountRead) continue;
+        const result = message.method === 'account/read' ? { account: null } : {};
+        queueMicrotask(() => child.stdout.write(`${JSON.stringify({ id: message.id, result })}\n`));
+      }
+    });
+    child.kill = () => { child.killed = true; };
+    return child;
+  };
+  const terminateProcess = async child => { terminated.push(child.pid); child.killed = true; };
+  return { calls, spawnCalls, terminated, spawnProcess, terminateProcess, setHangAccountRead: value => { hangAccountRead = value; } };
+}
 
 test('builds an injection-resistant prompt from bounded public post data', () => {
   const prompt = buildAiPrompt({
@@ -97,6 +130,45 @@ test('bounds the number of active and queued AI jobs', async () => {
   release(validResult);
   assert.deepEqual(await first, validResult);
   assert.equal(service.queuedAnalysisJobs, 0);
+});
+
+test('isolates Codex from plugins and coalesces concurrent account status reads', async t => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'rsignals-codex-service-'));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const harness = createCodexHarness();
+  const service = new CodexService({ dataDir, binaryPath: 'fixture-codex', spawnProcess: harness.spawnProcess, terminateProcess: harness.terminateProcess });
+  const statuses = await Promise.all([service.status(), service.status(), service.status()]);
+  assert.ok(statuses.every(status => status.available && !status.connected));
+  assert.equal(harness.calls.filter(call => call.method === 'account/read').length, 1);
+  assert.deepEqual(harness.spawnCalls[0].args, [
+    'app-server', '--listen', 'stdio://',
+    '--disable', 'plugins',
+    '--disable', 'apps',
+    '--disable', 'recommended_plugins',
+    '--disable', 'remote_plugin'
+  ]);
+  await service.stop();
+  assert.deepEqual(harness.terminated, [10_000]);
+});
+
+test('terminates an unresponsive Codex process after a protocol timeout and can restart', async t => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'rsignals-codex-timeout-'));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const harness = createCodexHarness();
+  harness.setHangAccountRead(true);
+  const service = new CodexService({ dataDir, binaryPath: 'fixture-codex', spawnProcess: harness.spawnProcess, terminateProcess: harness.terminateProcess, requestTimeoutMs: 100 });
+  const timedOut = await service.status();
+  assert.equal(timedOut.available, false);
+  assert.match(timedOut.error, /timed out during account\/read/i);
+  if (service.recovering) await service.recovering;
+  assert.deepEqual(harness.terminated, [10_000]);
+  assert.equal(service.process, null);
+
+  harness.setHangAccountRead(false);
+  const recovered = await service.status();
+  assert.equal(recovered.available, true);
+  assert.equal(harness.spawnCalls.length, 2);
+  await service.stop();
 });
 
 test('serves AI status, login, analysis, and stops the injected service', async t => {
