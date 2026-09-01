@@ -127,7 +127,7 @@ Release builds use Azure Artifact Signing with the existing Forceworks Public Tr
 
 ## AnyAPI configuration
 
-Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/). Paste it into Watchlists and select Save key. The key is encrypted with Windows protected storage in the Electron user-data directory and is never sent to the social platforms directly.
+Get an AnyAPI key at [getanyapi.com](https://getanyapi.com/?via=6pyj2mbfq9). Paste it into Watchlists and select Save key. The key is encrypted with Windows protected storage in the Electron user-data directory and is never sent to the social platforms directly.
 
 Follower counts load after scan results appear. RSignals deduplicates authors and caches profile counts locally for 24 hours to limit paid `twitter.profile` and `linkedin.profile` calls. Counts are omitted when a profile cannot be resolved.
 
