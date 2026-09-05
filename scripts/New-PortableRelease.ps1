@@ -42,7 +42,10 @@ if (Test-Path -LiteralPath $OutputPath) {
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
+$validationPath = $null
 try {
+  & node (Join-Path $PSScriptRoot 'verify-packaged.cjs') (Join-Path $sourcePath 'resources/app.asar')
+  if ($LASTEXITCODE -ne 0) { throw 'Packaged application does not match this checkout.' }
   [System.IO.Compression.ZipFile]::CreateFromDirectory(
     $sourcePath,
     $OutputPath,
@@ -67,13 +70,25 @@ try {
     $archive.Dispose()
   }
 
+  $validationPath = Join-Path $distRoot ('zip-verify-' + [guid]::NewGuid().ToString('N'))
+  [System.IO.Compression.ZipFile]::ExtractToDirectory($OutputPath, $validationPath)
+  foreach ($sourceFile in $sourceFiles) {
+    $relativePath = [System.IO.Path]::GetRelativePath($sourcePath, $sourceFile.FullName)
+    $extractedPath = Join-Path $validationPath $relativePath
+    if ((Get-FileHash -LiteralPath $sourceFile.FullName).Hash -ne (Get-FileHash -LiteralPath $extractedPath).Hash) {
+      throw "Extracted ZIP content differs: $relativePath"
+    }
+  }
+  & node (Join-Path $PSScriptRoot 'verify-packaged.cjs') (Join-Path $validationPath 'resources/app.asar')
+  if ($LASTEXITCODE -ne 0) { throw 'Extracted application version or content is invalid.' }
+
   $shell = New-Object -ComObject Shell.Application
   $explorerArchive = $shell.NameSpace($OutputPath)
   if ($null -eq $explorerArchive -or $explorerArchive.Items().Count -le 0) {
     throw 'Windows Explorer cannot enumerate the portable ZIP.'
   }
 
-  $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path $sourcePath 'RSignals.exe')
+  $signature = Get-AuthenticodeSignature -LiteralPath (Join-Path $validationPath 'RSignals.exe')
   if ($signature.Status -ne 'Valid') {
     throw "RSignals.exe signature is not valid: $($signature.Status)"
   }
@@ -93,4 +108,13 @@ try {
     Remove-Item -LiteralPath $OutputPath -Force
   }
   throw
+} finally {
+  if ($validationPath -and (Test-Path -LiteralPath $validationPath)) {
+    $resolvedValidationPath = (Resolve-Path -LiteralPath $validationPath).Path
+    if (-not $resolvedValidationPath.StartsWith($distPrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+        (Split-Path -Leaf $resolvedValidationPath) -notmatch '^zip-verify-[0-9a-f]{32}$') {
+      throw 'Refusing to remove an unexpected validation directory.'
+    }
+    Remove-Item -LiteralPath $resolvedValidationPath -Recurse -Force
+  }
 }

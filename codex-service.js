@@ -497,6 +497,11 @@ export class CodexService extends EventEmitter {
     const completion = new Promise((resolve, reject) => {
       const handler = message => {
         const params = message.params || {};
+        if (message.method === 'process/exited') {
+          cleanup();
+          reject(new Error(params.error || 'OpenAI Codex stopped during analysis.'));
+          return;
+        }
         if (params.threadId !== threadId) return;
         if (message.method === 'item/completed' && params.item?.type === 'agentMessage' && params.item.text) finalText = params.item.text;
         if (message.method === 'error') {
@@ -507,10 +512,6 @@ export class CodexService extends EventEmitter {
           cleanup();
           if (params.turn?.status === 'completed' && finalText) resolve(finalText);
           else reject(new Error(params.turn?.error?.message || 'OpenAI Codex analysis did not complete.'));
-        }
-        if (message.method === 'process/exited') {
-          cleanup();
-          reject(new Error(params.error || 'OpenAI Codex stopped during analysis.'));
         }
       };
       const cleanup = () => {
@@ -526,6 +527,8 @@ export class CodexService extends EventEmitter {
         reject(new Error('OpenAI Codex analysis timed out.'));
       }, 120_000);
     });
+    // Process exit can reject completion before turn/start has acknowledged.
+    void completion.catch(() => {});
     try {
       const started = await this.request('turn/start', {
         threadId,

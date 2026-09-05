@@ -34,8 +34,7 @@ function canOpenExternal(value) {
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:') return false;
-    const host = url.hostname.toLowerCase().replace(/^www\./, '');
-    return ['x.com', 'twitter.com', 'linkedin.com', 'reddit.com', 'youtube.com', 'youtu.be', 'tiktok.com', 'substack.com', 'getanyapi.com', 'chatgpt.com', 'auth.openai.com', 'platform.openai.com', 'producthunt.com', 'github.com'].includes(host) || host.endsWith('.substack.com');
+    return Boolean(url.hostname) && !url.username && !url.password;
   } catch { return false; }
 }
 
@@ -151,7 +150,11 @@ ipcMain.handle('notify', (_event, payload) => {
   }
 });
 
-ipcMain.handle('open-external', (_event, url) => typeof url === 'string' && canOpenExternal(url) ? shell.openExternal(url) : false);
+ipcMain.handle('open-external', async (event, url) => {
+  if (!isTrustedRenderer(event) || typeof url !== 'string' || !canOpenExternal(url)) return false;
+  await shell.openExternal(url);
+  return true;
+});
 ipcMain.handle('set-startup', (_event, enabled) => {
   app.setLoginItemSettings({ openAtLogin: Boolean(enabled), openAsHidden: true });
   return app.getLoginItemSettings().openAtLogin;

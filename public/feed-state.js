@@ -1,3 +1,10 @@
+export function restoreFeed(storage, options = {}) {
+  try {
+    const posts = JSON.parse(storage.getItem('signal:posts') || '[]');
+    return mergeScanPosts([], Array.isArray(posts) ? posts.filter(post => post && typeof post === 'object' && post.author && typeof post.text === 'string') : [], options);
+  } catch { return []; }
+}
+
 function platformName(value) {
   return String(value || 'unknown').trim().toLowerCase() || 'unknown';
 }

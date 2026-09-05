@@ -119,7 +119,7 @@ npm test
 npm start
 ```
 
-For a packaged Windows directory build, run `npm run pack`. Run `npm run release:zip` to build a Windows Explorer-compatible portable ZIP and validate its structure, code signature, and checksum. For a Windows x64 installer, run `npm run dist`.
+For a packaged Windows directory build, run `npm run pack`. Run `npm run release:zip` to build a Windows Explorer-compatible portable ZIP, fully extract it, compare every extracted file hash, and validate the extracted code signature, embedded version, and application sources. `-SkipBuild` also rejects stale or missing application code. For a Windows x64 installer, run `npm run dist`.
 
 ## Windows code signing
 
@@ -135,7 +135,7 @@ Follower counts load after scan results appear. RSignals deduplicates authors an
 
 Open Settings, find AI Assist, and choose **Connect ChatGPT** to sign in with a ChatGPT subscription that includes Codex access. As a fallback, expand **Use an OpenAI API key instead**; API usage is then billed separately by OpenAI.
 
-AI engagement instructions can describe what to show or avoid semantically, regardless of exact wording, and how suggested replies should sound. For example, an instruction to avoid hiring content can recognize recruiting and staffing announcements that do not contain the word “hiring.” When instructions are saved, RSignals sends each new scan batch to OpenAI before displaying posts or sending notifications. Screening is batched and cached; if it is unavailable, RSignals fails open by showing the posts and reporting that screening was skipped.
+AI engagement instructions can describe what to show or avoid semantically, regardless of exact wording, and how suggested replies should sound. For example, an instruction to avoid hiring content can recognize recruiting and staffing announcements that do not contain the word “hiring.” When instructions are saved, RSignals sends scan results to OpenAI before displaying new posts or sending notifications. Screening is batched by post count and request size, and cached. If a batch fails, completed decisions still apply and previously displayed posts can remain visible. New posts awaiting screening stay out of the feed until a later scan can evaluate them; the scan status reports the incomplete screening.
 
 Selecting **AI Assist** on a result sends that public post, its watchlist topic and public metrics, your profile, and the engagement instructions to OpenAI. It returns a relevance assessment and helpful, curious, concise, and constructively contrarian reply drafts inline. You can copy a draft, but RSignals never submits it or performs any social action.
 
@@ -156,13 +156,16 @@ ANYAPI_SUBSTACK_SEARCH_SKU
 
 RSignals marks a post as seen only after it has a normalized publication timestamp, passed the configured maximum-age rule, passed current-scan deduplication, and survived the comment/reply filter.
 
+Seen posts remain eligible for the feed until they expire. Fresh opportunities are restored after a restart, while previously seen posts are not counted as new or notified again. Only one scan runs at a time. Startup and timer scans respect quiet hours and quiet days; Scan now can still be used manually during quiet time.
+
 Timestamp handling supports Unix seconds, Unix milliseconds, ISO dates, relative values, and the published/created field variants returned by AnyAPI. Card timestamps recalculate while the app is open, so `3m` can become `13m`.
 
 ## Local data and privacy
 
-- Watchlists, saved posts, hidden posts, scan settings, and notification settings use browser `localStorage`.
+- Watchlists, fresh opportunities, saved posts, hidden posts, scan settings, and notification settings use browser `localStorage`.
 - The AnyAPI key is encrypted with Windows protected storage in `anyapi-key.bin` under the Electron user-data directory. Existing plaintext `anyapi-key.txt` values are migrated and removed on first use.
 - Seen-post history is stored in `seen-posts.json` and trimmed to recent history.
+- X article lookups are cached in `x-article-cache.json` so repeated scans can restore article content without repeating the lookup.
 - The server may write sanitized, size-bounded internal logs and last-response files for troubleshooting.
 - Raw response fixture capture is opt-in through `SIGNAL_DIAGNOSTIC_MODE=1`, sanitizes credentials and sensitive values, and retains at most 20 fixtures.
 - AI engagement instructions and the user profile are stored in browser `localStorage`.

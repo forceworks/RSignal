@@ -615,11 +615,11 @@ async function writeFollowerCache(cache){
   const target=join(getDataDir(),'follower-cache.json'); const temporary=`${target}.tmp`;
   await writeFile(temporary,JSON.stringify(trimmed,null,2),'utf8'); await rename(temporary,target);
 }
-async function readArticleCache(){ try{ const value=JSON.parse(await readFile(join(getDataDir(),'linkedin-article-cache.json'),'utf8')); return value&&typeof value==='object'?value:{}; }catch{return{};} }
-async function writeArticleCache(cache){
+async function readArticleCache(filename='linkedin-article-cache.json'){ try{ const value=JSON.parse(await readFile(join(getDataDir(),filename),'utf8')); return value&&typeof value==='object'?value:{}; }catch{return{};} }
+async function writeArticleCache(cache,filename='linkedin-article-cache.json'){
   const cutoff=Date.now()-articleCacheMaxAgeMs;
   const trimmed=Object.fromEntries(Object.entries(cache).filter(([,entry])=>Number(entry?.fetchedAt)>=cutoff).sort((a,b)=>Number(b[1]?.fetchedAt)-Number(a[1]?.fetchedAt)).slice(0,200));
-  const target=join(getDataDir(),'linkedin-article-cache.json'); const temporary=`${target}.tmp`;
+  const target=join(getDataDir(),filename); const temporary=`${target}.tmp`;
   await writeFile(temporary,JSON.stringify(trimmed,null,2),'utf8'); await rename(temporary,target);
 }
 async function getLinkedInArticle(value,key){
@@ -635,20 +635,28 @@ async function getLinkedInArticle(value,key){
   return {article,cached:false,costUsd:Number(payload.costUsd||0)};
 }
 async function enrichXArticles(posts,key){
+  const cache=await readArticleCache('x-article-cache.json');
   const candidates=posts.filter(isXArticleCandidate); let cursor=0,costUsd=0,found=0;
   const worker=async()=>{while(cursor<candidates.length){
     const post=candidates[cursor++];
     try{
-      const {payload}=await callAnyApi('twitter.article',key,[{url:canonicalXPostUrl(post.url)}],{platform:'x',operation:'article_lookup',redactBody:true});
-      costUsd+=Number(payload.costUsd||0);
-      if(payload?.output?.found===false) continue;
-      const article=normalizeXArticle(payload,post.url);
+      const url=canonicalXPostUrl(post.url),cached=cache[url];
+      let article;
+      if(cached&&Date.now()-Number(cached.fetchedAt)<articleCacheMaxAgeMs){article=cached.article;}
+      else{
+        const {payload}=await callAnyApi('twitter.article',key,[{url}],{platform:'x',operation:'article_lookup',redactBody:true});
+        costUsd+=Number(payload.costUsd||0);
+        article=payload?.output?.found===false?null:normalizeXArticle(payload,post.url);
+        cache[url]={article,fetchedAt:Date.now()};
+      }
+      if(!article)continue;
       if(!article.title||!article.body) continue;
       post.attachment={type:'article',title:article.title,subtitle:article.description,description:'',url:article.url,image:article.image};
       post.article=article; found++;
     }catch(error){await logDiagnostic('x_article.failed',{platform:'x',message:safeErrorMessage(error)});}
   }};
   await Promise.all(Array.from({length:Math.min(4,candidates.length)},worker));
+  if(candidates.length)try{await writeArticleCache(cache,'x-article-cache.json');}catch{}
   return {attempted:candidates.length,found,costUsd};
 }
 async function enrichFollowerProfiles(authors,key){
@@ -807,7 +815,7 @@ function demoPosts(platform,query,limit=12){
   return templates.slice(0,limit).map((t,i)=>{const id=`demo-${platform}-${i}`;const urls={x:`https://x.com/${t[1]}/status/${id}`,linkedin:`https://www.linkedin.com/feed/update/urn:li:activity:700000000000000000${i}/`,reddit:`https://www.reddit.com/r/technology/comments/${id}/`,youtube:`https://www.youtube.com/watch?v=${id}`,tiktok:`https://www.tiktok.com/@${t[1]}/video/${id}`,substack:`https://signal-demo.substack.com/p/${id}`};return {platform,id,query,author:{name:t[0],username:t[1],verified:i%3===0,followers:[18400,7200,31500,4900][i]},text:t[2],url:urls[platform]||urls.x,createdAt:new Date(now-[11,19,27,43][i]*60000).toISOString(),replies:t[3],likes:t[4],reposts:t[5],views:t[6]};});
 }
 
-export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const updateChecker=options.updateChecker||createUpdateChecker(); const capabilityToken=String(options.capabilityToken||''); const credentialStore=options.credentialStore; const server=http.createServer(async(req,res)=>{ try{
+export function createSignalServer(options={}){ const aiService=options.aiService||new CodexService({dataDir:getDataDir(),version:appVersion}); const updateChecker=options.updateChecker||createUpdateChecker(); const capabilityToken=String(options.capabilityToken||''); const credentialStore=options.credentialStore; let scanInProgress=false; const server=http.createServer(async(req,res)=>{ try{
   const url=new URL(req.url,'http://127.0.0.1');
   if(url.pathname.startsWith('/api/')){
     if(!authorizeApiRequest(req,res,capabilityToken)) return;
@@ -831,6 +839,9 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     try{const body=JSON.parse((await collect(req))||'{}');return sendJson(res,200,await aiService.screen(body.posts,body.instructions,body.profile));}catch(error){return sendJson(res,aiErrorStatus(error),{error:safeCodexError(error)});}
   }
   if(req.method==='POST'&&url.pathname==='/api/search'){
+    if(scanInProgress) return sendJson(res,409,{error:'A scan is already running.'});
+    scanInProgress=true;
+    try {
     const body=JSON.parse((await collect(req))||'{}');
     const supportedPlatforms=['x','linkedin','reddit','youtube','tiktok','substack'];
     const platforms=Array.isArray(body.platforms)?[...new Set(body.platforms.filter(p=>supportedPlatforms.includes(p)))]:['x'];
@@ -858,14 +869,15 @@ export function createSignalServer(options={}){ const aiService=options.aiServic
     let missingDate=0,tooOld=0,alreadySeen=0; const posts=[];
     const rejectionByJob={};
     const bump=(post,kind)=>{const k=`${post.platform}|||${post.query}`; rejectionByJob[k]??={missingDate:0,tooOld:0,alreadySeen:0,duplicates:0,new:0}; rejectionByJob[k][kind]++;};
-    for(const post of all){ const key=postKey(post); const legacyKey=key.startsWith('x:')?key.slice(2):null; const postedAt=post.createdAt?new Date(post.createdAt).getTime():NaN; if(!Number.isFinite(postedAt)){missingDate++;bump(post,'missingDate');continue;} const ageHours=Math.max(0,(now-postedAt)/3_600_000); if(ageHours>maxAgeHours){tooOld++;bump(post,'tooOld');continue;} if(history[key]||(legacyKey&&history[legacyKey])){alreadySeen++;bump(post,'alreadySeen');continue;} posts.push(post); bump(post,'new'); history[key]=now; }
+    for(const post of all){ const key=postKey(post); const legacyKey=key.startsWith('x:')?key.slice(2):null; const postedAt=post.createdAt?new Date(post.createdAt).getTime():NaN; if(!Number.isFinite(postedAt)){missingDate++;bump(post,'missingDate');continue;} const ageHours=Math.max(0,(now-postedAt)/3_600_000); if(ageHours>=maxAgeHours){tooOld++;bump(post,'tooOld');continue;} const isNew=!(history[key]||(legacyKey&&history[legacyKey])); if(!isNew){alreadySeen++;bump(post,'alreadySeen');}else{bump(post,'new');history[key]=now;} posts.push({...post,isNew}); }
     for(const d of diagnostics){ const k=`${d.platform}|||${d.query}`; Object.assign(d,rejectionByJob[k]||{missingDate:0,tooOld:0,alreadySeen:0,duplicates:0,new:0}); }
     const articleEnrichment=posts.some(isXArticleCandidate)&&key?await enrichXArticles(posts,key):{attempted:0,found:0,costUsd:0};
     await writeSeenPosts(history); posts.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
-    const byPlatform={}; for(const p of platforms) byPlatform[p]={fetched:all.filter(x=>x.platform===p).length,new:posts.filter(x=>x.platform===p).length,costUsd:results.filter(r=>r.platform===p).reduce((s,r)=>s+r.costUsd,0)+(p==='x'?articleEnrichment.costUsd:0)};
+    const byPlatform={}; for(const p of platforms) byPlatform[p]={fetched:all.filter(x=>x.platform===p).length,new:posts.filter(x=>x.platform===p&&x.isNew).length,costUsd:results.filter(r=>r.platform===p).reduce((s,r)=>s+r.costUsd,0)+(p==='x'?articleEnrichment.costUsd:0)};
     const responseBody={demo:results.every(r=>r.demo),posts,costUsd:results.reduce((s,r)=>s+r.costUsd,0)+articleEnrichment.costUsd,stats:{fetched:all.length,duplicates,alreadySeen,tooOld,missingDate,maxAgeHours,byPlatform,failures,diagnostics,xArticles:articleEnrichment}};
-    await logDiagnostic('scan.complete',{maxAgeHours,totalFetched:all.length,new:posts.length,duplicates,alreadySeen,tooOld,missingDate,failures,xArticles:articleEnrichment,diagnostics});
+    await logDiagnostic('scan.complete',{maxAgeHours,totalFetched:all.length,new:posts.filter(post=>post.isNew).length,duplicates,alreadySeen,tooOld,missingDate,failures,xArticles:articleEnrichment,diagnostics});
     return sendJson(res,200,responseBody);
+    } finally { scanInProgress=false; }
   }
   if(req.method==='POST'&&url.pathname==='/api/followers'){
     const body=JSON.parse((await collect(req))||'{}');

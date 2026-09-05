@@ -171,6 +171,34 @@ test('terminates an unresponsive Codex process after a protocol timeout and can 
   await service.stop();
 });
 
+test('process exit rejects an active AI turn immediately and releases its queue', async () => {
+  const service = new CodexService({ dataDir: '.' });
+  service.request = async () => ({ turn: { id: 'test-turn' } });
+  service.runAnalysis = () => service.runTurn('test-thread', 'fixture');
+  const result = service.analyze({ text: 'fixture' });
+  const rejected = assert.rejects(result, /fixture exit/);
+  await new Promise(resolve => setImmediate(resolve));
+  service.emit('notification', { method: 'process/exited', params: { error: 'fixture exit' } });
+  await rejected;
+  assert.equal(service.queuedAnalysisJobs, 0);
+  assert.equal(service.listenerCount('notification'), 0);
+  service.runAnalysis = async () => validResult;
+  assert.deepEqual(await service.analyze({ text: 'retry' }), validResult);
+});
+
+test('AI process exit before turn-start acknowledgment does not leak an unhandled rejection', async () => {
+  const service = new CodexService({ dataDir: '.' });
+  let rejectStart;
+  service.request = () => new Promise((_, reject) => { rejectStart = reject; });
+  const result = service.runTurn('test-thread', 'fixture');
+  const rejected = assert.rejects(result, /fixture exit/);
+  service.emit('notification', { method: 'process/exited', params: { error: 'fixture exit' } });
+  await new Promise(resolve => setImmediate(resolve));
+  rejectStart(new Error('fixture exit'));
+  await rejected;
+  assert.equal(service.listenerCount('notification'), 0);
+});
+
 test('serves AI status, login, analysis, and stops the injected service', async t => {
   const calls = [];
   const aiService = {
