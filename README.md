@@ -10,7 +10,7 @@ RSignals does not automatically act on your behalf. It never creates posts, comm
 
 ## Current status
 
-Version 1.5.2 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
+Version 1.5.15 is a Windows x64 Electron application. X and LinkedIn are enabled by default. Reddit, YouTube, TikTok, and Substack are available as opt-in sources.
 
 The application is local-first and single-user. It does not require a database or hosted backend.
 
@@ -45,6 +45,7 @@ This is the public RSignal snapshot. Active development, experiments, and unrele
 - TikTok hashtag monitoring through the timestamped hashtag endpoint.
 - Substack publication monitoring by publication URL.
 - Save and hide actions persisted across rescans and restarts.
+- Source-specific author blocking and prioritization, saved across restarts. Open **Author** on a card to block or prioritize its author; manage the lists in **Settings → Authors**. Blocked authors are excluded from opportunities and alerts (saved posts remain accessible). Preferred authors appear first in Best matches, without bypassing freshness, follower, or AI filters. Controls appear only when a source provides an identifiable account, not just a display name.
 - Relative timestamps that refresh while the app is open.
 - Manual scanning and configurable background scanning.
 - Daily update checks with an in-app download notice and an optional one-time Windows toast for each new version.

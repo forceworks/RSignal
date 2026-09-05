@@ -108,6 +108,15 @@
               <div class="quiet-days" aria-label="Quiet days"><span>All day on</span><label><input class="quiet-day" type="checkbox" value="1" /> Mon</label><label><input class="quiet-day" type="checkbox" value="2" /> Tue</label><label><input class="quiet-day" type="checkbox" value="3" /> Wed</label><label><input class="quiet-day" type="checkbox" value="4" /> Thu</label><label><input class="quiet-day" type="checkbox" value="5" /> Fri</label><label><input class="quiet-day" type="checkbox" value="6" checked /> Sat</label><label><input class="quiet-day" type="checkbox" value="0" checked /> Sun</label></div>
             </section>
 
+            <section class="settings-group settings-group-wide">
+              <div class="settings-group-head"><h3>Authors</h3><p>Use Author on a post to block or prioritize its author. Changes save immediately.</p></div>
+              <div class="author-rule-columns">
+                <section><h4>Blocked authors</h4><p class="hint">Excluded from opportunities and alerts. Saved posts remain accessible.</p><div id="blockedAuthors" class="author-rule-list"></div></section>
+                <section><h4>Preferred authors</h4><p class="hint">Shown first in Best matches. Freshness, follower, and AI filters still apply.</p><div id="preferredAuthors" class="author-rule-list"></div></section>
+              </div>
+              <p id="authorRuleStatus" class="hint" role="status" aria-live="polite"></p>
+            </section>
+
             <section class="settings-group settings-group-wide ai-settings">
               <div class="settings-group-head"><h3>AI Assist <span class="optional-label">Optional</span></h3><p>Control what opportunities AI shows and how it drafts replies. RSignals never posts, likes, comments, or messages on your behalf.</p></div>
               <div class="ai-connection-row">

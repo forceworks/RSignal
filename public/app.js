@@ -1,4 +1,5 @@
 import { score } from './scoring.js';
+import { authorIdentity, readAuthorRules, authorMode, changeAuthorRule } from './author-rules.js';
 import { mergeScanPosts, normalizePostIdentity, postIdentity, restoreFeed } from './feed-state.js';
 import { createScanRunner, inQuietHours as quietNow, screenInBatches, fetchFollowerBatches } from './scan-policy.js';
 
@@ -13,6 +14,7 @@ const defaults = [
 const emptyQueries=[];
 const storedHidden=JSON.parse(localStorage.getItem('signal:hidden')||'[]');
 const state={
+  authorRules:readAuthorRules(localStorage),
   posts:restoreFeed(localStorage,{maxAgeHours:Number(localStorage.getItem('signal:maxAgeHours')||3),hidden:storedHidden}),saved:JSON.parse(localStorage.getItem('signal:saved')||'[]'),hidden:[...new Set((Array.isArray(storedHidden)?storedHidden:[]).map(normalizePostIdentity).filter(Boolean))],queriesX:JSON.parse(localStorage.getItem('signal:queries:x')||'null')||[...defaults],queriesLinkedIn:JSON.parse(localStorage.getItem('signal:queries:linkedin')||'null')||[...defaults],queriesReddit:JSON.parse(localStorage.getItem('signal:queries:reddit')||'null')||[...emptyQueries],queriesYoutube:JSON.parse(localStorage.getItem('signal:queries:youtube')||'null')||[...emptyQueries],queriesTiktok:JSON.parse(localStorage.getItem('signal:queries:tiktok')||'null')||[...emptyQueries],queriesSubstack:JSON.parse(localStorage.getItem('signal:queries:substack')||'null')||[...emptyQueries],
   limit:Number(localStorage.getItem('signal:limit')||12),minFollowers:Number(localStorage.getItem('signal:minFollowers')||0),maxAgeHours:Number(localStorage.getItem('signal:maxAgeHours')||3),scanInterval:Number(localStorage.getItem('signal:scanInterval')||15),notifyScore:Number(localStorage.getItem('signal:notifyScore')||70),notificationsEnabled:localStorage.getItem('signal:notificationsEnabled')!=='false',quietHoursEnabled:localStorage.getItem('signal:quietHoursEnabled')==='true',quietStart:localStorage.getItem('signal:quietStart')||'22:00',quietEnd:localStorage.getItem('signal:quietEnd')||'07:00',quietDays:JSON.parse(localStorage.getItem('signal:quietDays')||'null')||[0,6],
   platforms:JSON.parse(localStorage.getItem('signal:platforms')||'null')||['x','linkedin'],filter:'all',aiProfile:localStorage.getItem('signal:aiProfile')||'',aiInstructions:localStorage.getItem('signal:aiInstructions')||'',aiStatus:null,aiResults:new Map(),articleResults:new Map()
@@ -48,10 +50,14 @@ function renderCard(post,showHide=true){
   const s=score(post),isSaved=state.saved.some(x=>x.url===post.url),card=document.createElement('article');
   card.className='card';
   card.dataset.postKey=postIdentity(post);
-  card.innerHTML=`<div class="score"><strong>${s}</strong><span>fit score</span></div><div class="content"><div class="author"><span class="platform ${post.platform}">${platformLabel(post)}</span><strong>${escapeHtml(post.author.name)}</strong>${post.author.verified?'<span class="verified">●</span>':''}<span class="handle">${authorSecondary(post)}</span>${followerMarkup(post)}<span class="time" title="${escapeHtml(exactTime(post.createdAt))}">· ${minutesAgo(post.createdAt)}</span></div><div class="post-text clamped">${highlightQueryTerms(post.text,post.query)}</div><button class="post-more hidden" type="button" aria-expanded="false">More</button>${attachmentMarkup(post)}<div class="metrics"><span>↩ ${post.replies}</span><span>♥ ${post.likes}</span><span>↻ ${post.reposts}</span>${post.views?`<span>◉ ${format(post.views)}</span>`:''}</div><span class="query-chip">${escapeHtml(post.query)}</span></div><div class="actions"><button class="icon-btn save ${isSaved?'saved':''}" title="Save">${isSaved?'★':'☆'}</button><button class="icon-btn ai-assist" title="Assess relevance and draft replies">AI Assist</button><button class="icon-btn inspect">View</button>${showHide?'<button class="icon-btn hide" title="Hide from opportunities">Hide</button>':''}</div>`;
+  card.innerHTML=`<div class="score"><strong>${s}</strong><span>fit score</span></div><div class="content"><div class="author"><span class="platform ${post.platform}">${platformLabel(post)}</span><strong>${escapeHtml(post.author.name)}</strong>${post.author.verified?'<span class="verified">●</span>':''}<span class="handle">${authorSecondary(post)}</span>${followerMarkup(post)}${authorBadge(post)}<span class="time" title="${escapeHtml(exactTime(post.createdAt))}">· ${minutesAgo(post.createdAt)}</span></div><div class="post-text clamped">${highlightQueryTerms(post.text,post.query)}</div><button class="post-more hidden" type="button" aria-expanded="false">More</button>${attachmentMarkup(post)}<div class="metrics"><span>↩ ${post.replies}</span><span>♥ ${post.likes}</span><span>↻ ${post.reposts}</span>${post.views?`<span>◉ ${format(post.views)}</span>`:''}</div><span class="query-chip">${escapeHtml(post.query)}</span></div><div class="actions"><button class="icon-btn save ${isSaved?'saved':''}" title="Save">${isSaved?'★':'☆'}</button><button class="icon-btn ai-assist" title="Assess relevance and draft replies">AI Assist</button><button class="icon-btn inspect">View</button>${showHide?'<button class="icon-btn hide" title="Hide from opportunities">Hide</button>':''}${authorControls(post)}</div>`;
   removeBrokenAttachmentImages(card);
   const text=card.querySelector('.post-text'),more=card.querySelector('.post-more');
   more.onclick=()=>{const expanded=text.classList.toggle('expanded');more.textContent=expanded?'Less':'More';more.setAttribute('aria-expanded',String(expanded));if(!expanded)requestAnimationFrame(()=>updatePostOverflow(card));};
+  if(authorIdentity(post)){
+    card.querySelector('.prefer-author').onclick=()=>setAuthorRule(post,authorMode(post,state.authorRules)==='preferred'?'':'preferred');
+    card.querySelector('.block-author').onclick=()=>setAuthorRule(post,authorMode(post,state.authorRules)==='blocked'?'':'blocked');
+  }
   card.querySelector('.save').onclick=()=>toggleSave(post);
   card.querySelector('.ai-assist').onclick=()=>runAiAssist(post,card);
   card.querySelector('.inspect').onclick=()=>openPost(post);
@@ -62,13 +68,49 @@ function renderCard(post,showHide=true){
   const article=post.article?{article:post.article,embedded:true}:state.articleResults.get(postIdentity(post));if(article)renderArticleResult(post,card,article);
   requestAnimationFrame(()=>updatePostOverflow(card));return card;
 }
+
+function isAuthorBlocked(post){return authorMode(post,state.authorRules)==='blocked';}
+function authorBadge(post){const mode=authorMode(post,state.authorRules);return mode?`<span class="author-preference ${mode}">${mode==='preferred'?'Preferred author':'Blocked author'}</span>`:'';}
+function authorControls(post){
+  if(!authorIdentity(post))return '';
+  const mode=authorMode(post,state.authorRules);
+  return `<details class="author-menu"><summary>Author</summary><button class="icon-btn prefer-author" type="button">${mode==='preferred'?'Remove priority':'Prioritize author'}</button><button class="icon-btn block-author" type="button">${mode==='blocked'?'Unblock author':'Block author'}</button></details>`;
+}
+function saveAuthorRule(author,mode){
+  const next=changeAuthorRule(state.authorRules,author,mode);
+  try{localStorage.setItem('signal:authorRules',JSON.stringify(next));}
+  catch{$('#scanMeta').textContent=$('#authorRuleStatus').textContent='Could not save author preferences. Check available disk space.';return false;}
+  state.authorRules=next;
+  $('#authorRuleStatus').textContent=mode==='blocked'?'Author blocked. Saved posts are unchanged.':mode==='preferred'?'Author prioritized in Best matches.':'Author preference removed.';
+  render();
+  return true;
+}
+function setAuthorRule(post,mode){
+  const key=authorIdentity(post);
+  if(!key)return false;
+  return saveAuthorRule({key,platform:post.platform,label:post.author.name||post.author.username||key},mode);
+}
+function renderAuthorRules(){
+  for(const [mode,selector] of [['blocked','#blockedAuthors'],['preferred','#preferredAuthors']]){
+    const rules=state.authorRules.filter(rule=>rule.mode===mode);
+    const rows=rules.map(rule=>{
+      const row=document.createElement('div');row.className='author-rule-row';
+      row.innerHTML=`<span>${escapeHtml(rule.label)}<small>${escapeHtml(platformNames[rule.platform])} · ${escapeHtml(rule.key.slice(rule.platform.length+1))}</small></span><button class="secondary" type="button">${mode==='blocked'?'Unblock':'Remove'}</button>`;
+      row.querySelector('button').onclick=()=>saveAuthorRule(rule,'');
+      return row;
+    });
+    $(selector).replaceChildren(...rows);
+    if(!rows.length)$(selector).innerHTML=`<p class="author-rule-empty">No ${mode} authors.</p>`;
+  }
+}
+
 function passesFollowerFilter(post){if(state.minFollowers<=0||!['x','linkedin'].includes(post.platform))return true;const followers=Number(post.author?.followers);return Number.isFinite(followers)&&followers>=state.minFollowers;}
-function visiblePosts(){return state.posts.filter(post=>!state.hidden.includes(postIdentity(post))&&passesFollowerFilter(post));}
+function visiblePosts(){return state.posts.filter(post=>!state.hidden.includes(postIdentity(post))&&!isAuthorBlocked(post)&&passesFollowerFilter(post));}
 function pruneExpiredPosts(){const fresh=mergeScanPosts(state.posts,[],{maxAgeHours:state.maxAgeHours,hidden:state.hidden});const changed=fresh.length!==state.posts.length;state.posts=fresh;try{localStorage.setItem('signal:posts',JSON.stringify(fresh));}catch{ $('#scanMeta').textContent='Could not save opportunities locally. Check available disk space.'; }return changed;}
-function render(){pruneExpiredPosts();let posts=visiblePosts();if(state.filter==='fresh')posts.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));else if(state.filter==='momentum')posts.sort((a,b)=>(b.likes+b.replies*3+b.reposts*2)-(a.likes+a.replies*3+a.reposts*2));else posts.sort((a,b)=>score(b)-score(a));feed.replaceChildren(...posts.map(post=>renderCard(post)));empty.classList.toggle('hidden',posts.length>0);savedFeed.replaceChildren(...state.saved.map(post=>renderCard(post,false)));if(!state.saved.length)savedFeed.innerHTML='<div class="empty"><h2>Nothing saved yet</h2><p>Use the star on an opportunity to keep it here.</p></div>';updateCounts();}
+function render(){pruneExpiredPosts();let posts=visiblePosts();if(state.filter==='fresh')posts.sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));else if(state.filter==='momentum')posts.sort((a,b)=>(b.likes+b.replies*3+b.reposts*2)-(a.likes+a.replies*3+a.reposts*2));else posts.sort((a,b)=>Number(authorMode(b,state.authorRules)==='preferred')-Number(authorMode(a,state.authorRules)==='preferred')||score(b)-score(a));feed.replaceChildren(...posts.map(post=>renderCard(post)));empty.classList.toggle('hidden',posts.length>0);savedFeed.replaceChildren(...state.saved.map(post=>renderCard(post,false)));if(!state.saved.length)savedFeed.innerHTML='<div class="empty"><h2>Nothing saved yet</h2><p>Use the star on an opportunity to keep it here.</p></div>';updateCounts();renderAuthorRules();}
 function followerAuthorKey(platform,author={}){const username=String(author.username||'').replace(/^@/,'').toLowerCase();if(username&&username!=='unknown')return`${platform}:${username}`;const profile=String(author.profileUrl||'').toLowerCase().replace(/\/+$/,'');return profile?`${platform}:${profile}`:'';}
 async function enrichFollowers(posts,enrichmentId){
-  const authors=posts.filter(post=>['x','linkedin'].includes(post.platform)&&post.author?.followers==null).map(post=>({platform:post.platform,username:post.author.username,profileUrl:post.author.profileUrl}));
+  const authors=posts.filter(post=>!isAuthorBlocked(post)&&['x','linkedin'].includes(post.platform)&&post.author?.followers==null).map(post=>({platform:post.platform,username:post.author.username,profileUrl:post.author.profileUrl}));
   if(!authors.length)return;
   try{
     const data=await fetchFollowerBatches(authors,async batch=>{
@@ -91,7 +133,7 @@ function formatCountdown(milliseconds){const total=Math.ceil(Math.max(0,millisec
 function inQuietHours(date=new Date()){return quietNow(state,date);}
 function updateAutoScanStatus(){if(!autoScanMeta)return;const last=lastAutoScanAt?` · last ${new Date(lastAutoScanAt).toLocaleTimeString()}`:'';if(inQuietHours()){autoScanMeta.textContent=`Quiet hours active · automatic scans paused${last}`;return;}autoScanMeta.textContent=`Next automatic scan in ${formatCountdown(nextScanAt-Date.now())}${last}`;}
 function scheduleAutomaticScan(){clearInterval(scanTimer);clearInterval(scheduleTicker);const intervalMs=Math.max(5,Number(state.scanInterval)||15)*60000;nextScanAt=Date.now()+intervalMs;updateAutoScanStatus();scheduleTicker=setInterval(updateAutoScanStatus,1000);scanTimer=setInterval(()=>{nextScanAt=Date.now()+intervalMs;updateAutoScanStatus();void scan(true);},intervalMs);}
-async function notifyFresh(posts){if(!window.signalDesktop||!state.notificationsEnabled||inQuietHours())return;const strong=posts.filter(p=>passesFollowerFilter(p)&&score(p)>=state.notifyScore);if(!strong.length)return;const top=strong.sort((a,b)=>score(b)-score(a))[0],title=strong.length===1?`RSignals found a fresh ${platformLabel(top)} post`:`RSignals found ${strong.length} fresh posts`,body=`${top.author.name} · ${platformLabel(top)} · score ${score(top)} — ${top.text.slice(0,125)}`;await window.signalDesktop.notify({title,body,postKey:strong.length===1?postIdentity(top):''});}
+async function notifyFresh(posts){if(!window.signalDesktop||!state.notificationsEnabled||inQuietHours())return;const strong=posts.filter(p=>!isAuthorBlocked(p)&&passesFollowerFilter(p)&&score(p)>=state.notifyScore);if(!strong.length)return;const top=strong.sort((a,b)=>score(b)-score(a))[0],title=strong.length===1?`RSignals found a fresh ${platformLabel(top)} post`:`RSignals found ${strong.length} fresh posts`,body=`${top.author.name} · ${platformLabel(top)} · score ${score(top)} — ${top.text.slice(0,125)}`;await window.signalDesktop.notify({title,body,postKey:strong.length===1?postIdentity(top):''});}
 function applyAiStatus(status){state.aiStatus=status;const connected=Boolean(status?.connected),screening=Boolean(state.aiInstructions.trim());aiStatus.textContent=connected?status.authMode==='chatgpt'?`ChatGPT connected${status.planType?` · ${status.planType}`:''}`:'OpenAI API key connected':status?.available?'AI Assist not connected':'AI Assist unavailable';aiStatus.className=`key-status ${connected?'key-saved':'key-missing'}`;aiStatusDetail.textContent=connected?screening?'AI Assist is ready. Engagement instructions will screen each new scan batch.':'AI Assist is ready. Add engagement instructions to screen new scan batches.':status?.error||'Use your ChatGPT subscription or your own OpenAI API key.';connectChatGPT.classList.toggle('hidden',connected);disconnectAi.classList.toggle('hidden',!connected);}
 async function checkAiStatus(){try{const response=await apiFetch('/api/ai/status'),status=await response.json();applyAiStatus(status);return status;}catch(error){const status={available:false,connected:false,error:error.message||'Could not reach AI Assist.'};applyAiStatus(status);return status;}}
 function stopAiPolling(){clearInterval(aiPollTimer);aiPollTimer=null;}
@@ -154,17 +196,19 @@ async function performScan(background=false){
       body:JSON.stringify({queriesByPlatform:{x:state.queriesX,linkedin:state.queriesLinkedIn,reddit:state.queriesReddit,youtube:state.queriesYoutube,tiktok:state.queriesTiktok,substack:state.queriesSubstack},platforms:state.platforms,limit:state.limit,maxAgeHours:state.maxAgeHours})
     }),data=await response.json();
     if(!response.ok)throw new Error(data.error||'Scan failed');
-    const screened=await screenPostsWithAi(data.posts);
-    const returnedKeys=new Set(data.posts.map(postIdentity)),acceptedKeys=new Set(screened.posts.map(postIdentity));
+    const candidates=data.posts.filter(post=>!isAuthorBlocked(post));
+    const screened=await screenPostsWithAi(candidates);
+    screened.posts=screened.posts.filter(post=>!isAuthorBlocked(post));
+    const returnedKeys=new Set(candidates.map(postIdentity)),acceptedKeys=new Set(screened.posts.map(postIdentity));
     const incomingKeys=new Set(screened.posts.filter(post=>post.isNew!==false).map(postIdentity));
     const retained=state.posts.filter(post=>!returnedKeys.has(postIdentity(post))||acceptedKeys.has(postIdentity(post)));
     state.posts=mergeScanPosts(retained,screened.posts,{maxAgeHours:state.maxAgeHours,hidden:state.hidden});
-    const newPosts=state.posts.filter(post=>incomingKeys.has(postIdentity(post)));
+    const newPosts=state.posts.filter(post=>incomingKeys.has(postIdentity(post))&&!isAuthorBlocked(post));
     const by=data.stats?.byPlatform||{},parts=state.platforms.map(platform=>`${platformNames[platform]} ${by[platform]?.new||0}`);
     const skipped=data.stats?` · ${data.stats.alreadySeen} seen · ${data.stats.tooOld} too old${data.stats.missingDate?` · ${data.stats.missingDate} missing time`:''}`:'';
     const failures=data.stats?.failures?.length?` · ${data.stats.failures.length} source error${data.stats.failures.length>1?'s':''}`:'';
     const aiMeta=screened.skipped?` · AI screening skipped: ${screened.error}`:screened.excluded?` · ${screened.excluded} excluded by AI`:state.aiInstructions.trim()?' · AI screened':'';
-    $('#scanMeta').textContent=`${state.posts.length} shown · ${newPosts.length} new (${parts.join(' · ')}) · last ${state.maxAgeHours}h · ${data.demo?'Demo data':'Live social data'}${data.costUsd?` · $${data.costUsd.toFixed(4)}`:''}${aiMeta}${skipped}${failures}`;
+    $('#scanMeta').textContent=`${visiblePosts().length} shown · ${newPosts.length} new (${parts.join(' · ')}) · last ${state.maxAgeHours}h · ${data.demo?'Demo data':'Live social data'}${data.costUsd?` · $${data.costUsd.toFixed(4)}`:''}${aiMeta}${skipped}${failures}`;
     render();
     renderDiagnostics(data.stats);
     const enrichmentId=++followerEnrichmentId;
@@ -201,7 +245,7 @@ window.addEventListener('resize',refreshPostOverflow);
 window.addEventListener('beforeunload',stopAiPolling);
 function renderDiagnostics(){}
 function hidePost(post){const key=postIdentity(post);if(!state.hidden.includes(key))state.hidden.unshift(key);localStorage.setItem('signal:hidden',JSON.stringify(state.hidden));render();}
-function updateCounts(){$('#navCount').textContent=visiblePosts().length;$('#savedCount').textContent=state.saved.length;}
+function updateCounts(){const count=visiblePosts().length;$('#navCount').textContent=count;$('#savedCount').textContent=state.saved.length;const meta=$('#scanMeta');meta.textContent=String(meta.textContent||'').replace(/^\d+ shown/,`${count} shown`);}
 function format(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n)} function escapeHtml(s=''){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
 
